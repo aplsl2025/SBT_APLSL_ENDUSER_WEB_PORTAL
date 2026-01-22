@@ -452,6 +452,42 @@
         </div>
 
         <div class="footer-note">
+
+<div class="hr"></div>
+
+<div class="hd" style="padding:0; border-bottom:none; margin-bottom:8px">
+  <h2 style="margin:0; font-size:15px">Orders (Live from Google Sheet)</h2>
+  <div class="right-actions">
+    <button class="btn small" id="btnRefreshOrders">Refresh Orders</button>
+    <button class="btn small" id="btnExportOrdersCsv">Export CSV</button>
+  </div>
+</div>
+
+<div style="overflow:auto">
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="min-width:160px">Order ID</th>
+        <th style="min-width:150px">Date/Time</th>
+        <th style="min-width:110px">Type</th>
+        <th style="min-width:170px">Name</th>
+        <th style="min-width:130px">Phone</th>
+        <th style="min-width:200px">Email</th>
+        <th style="min-width:110px">Total Qty</th>
+        <th style="min-width:130px">Approx Total</th>
+        <th style="min-width:260px">Remarks</th>
+        <th style="min-width:120px">Items</th>
+      </tr>
+    </thead>
+    <tbody id="ordersTbody"></tbody>
+  </table>
+</div>
+
+<div class="footer-note muted">
+  Note: For this to work, add <b>action=listOrders</b> in your Apps Script (code provided below).
+</div>
+
+        <div class="footer-note">
           Admin Login default: <b>ahanityapharmasuppliesllp@gmail.com</b> / <b>Admin@123</b> (you can change inside code).
         </div>
       </div>
@@ -492,7 +528,7 @@
 /* =========================
    CONFIG
 ========================= */
-const API_URL =https://script.google.com/macros/s/AKfycbwseSKiZrFitzXEugjBXuPIZAHwU0JoKFZuk7sfMva6JwXm6gWEXxXc6ptILNWQEE2v/exec
+const API_URL ="https://script.google.com/macros/s/AKfycbwLu6Ek7lAwe-8GOslkLEuDZH5kyNTeYTMPNH6IMsg/dev"
 const ORDER_EMAIL_TO = "ahanityapharmasuppliesllp@gmail.com";
 const ADMIN_EMAIL = "ahanityapharmasuppliesllp@gmail.com";
 const ADMIN_PASSWORD = "Admin@123"; // change if you want
@@ -528,6 +564,13 @@ async function apiDeleteInventory(id){
   const data = await res.json();
   if(!data.ok) throw new Error(data.error || "Failed to delete item");
   return data;
+}
+
+async function apiGetOrders(limit=100){
+  const res = await fetch(`${API_URL}?action=listOrders&limit=${encodeURIComponent(limit)}`);
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || "Failed to load orders");
+  return data.orders || [];
 }
 
 async function apiPlaceOrder(order){
@@ -1113,6 +1156,83 @@ function renderAdminTable(){
     </tr>
   `).join("");
 }
+let ordersCache = [];
+
+function safeJsonParse(s){
+  try{ return JSON.parse(s); }catch(e){ return null; }
+}
+
+function renderOrders(){
+  if(!ordersTbody) return;
+  const rows = (ordersCache || []).map(o=>{
+    const itemsArr = safeJsonParse(o.itemsJson || "[]") || (o.items || []);
+    const itemsCount = Array.isArray(itemsArr) ? itemsArr.length : 0;
+    const remarksTxt = (o.remarks || "").toString();
+    return `
+      <tr>
+        <td><b>${escapeTxt(o.orderId||"")}</b></td>
+        <td>${escapeTxt(o.dateTime||"")}</td>
+        <td>${escapeTxt(o.userType||"")}</td>
+        <td>${escapeTxt(o.name||"")}</td>
+        <td>${escapeTxt(o.phone||"")}</td>
+        <td>${escapeTxt(o.email||"")}</td>
+        <td>${escapeTxt(o.totalQty||"")}</td>
+        <td>${inr(o.approxTotal||0)}</td>
+        <td title="${escapeTxt(remarksTxt)}">${escapeTxt(remarksTxt).slice(0,60)}${remarksTxt.length>60?"…":""}</td>
+        <td><button class="btn small" onclick="viewOrderItems('${escapeTxt(o.orderId||"")}')">View (${itemsCount})</button></td>
+      </tr>
+    `;
+  }).join("");
+  ordersTbody.innerHTML = rows || `<tr><td colspan="10" class="muted">No orders found.</td></tr>`;
+}
+
+function viewOrderItems(orderId){
+  const o = (ordersCache || []).find(x => String(x.orderId) === String(orderId));
+  if(!o){ alert("Order not found."); return; }
+  const itemsArr = safeJsonParse(o.itemsJson || "[]") || (o.items || []);
+  let msg = `Order: ${o.orderId}\nDate: ${o.dateTime}\nCustomer: ${o.userType} - ${o.name}\n\nItems:\n`;
+  (itemsArr||[]).forEach((it, i)=>{
+    msg += `${i+1}) ${it.name || ""} | ${it.pack || ""} | Qty: ${it.qty || 0} | Price: ${it.price || 0}\n`;
+  });
+  if(o.remarks) msg += `\nRemarks: ${o.remarks}`;
+  alert(msg);
+}
+
+function toCsvRow(fields){
+  return fields.map(v=>{
+    const s = String(v ?? "");
+    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  }).join(",");
+}
+
+function exportOrdersCsv(){
+  if(!ordersCache || ordersCache.length===0){ alert("No orders to export."); return; }
+  const headers = ["orderId","dateTime","userType","name","phone","email","totalQty","approxTotal","remarks","itemsJson"];
+  const lines = [toCsvRow(headers)];
+  ordersCache.forEach(o=>{
+    lines.push(toCsvRow(headers.map(h=>o[h] ?? "")));
+  });
+  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "orders_export.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function refreshOrders(){
+  try{
+    ordersCache = await apiGetOrders(200);
+    renderOrders();
+  }catch(e){
+    alert("Orders load failed: " + e.message + "\n\nAdd action=listOrders in Apps Script.");
+  }
+}
+
 
 /* =========================
    EVENTS
@@ -1162,6 +1282,8 @@ btnAdminLogin.onclick = ()=>{
     showAdminPanel(true);
 
     renderAll();
+    // Load orders list
+    refreshOrders();
   }else{
     toast("Invalid admin credentials.");
   }
@@ -1200,6 +1322,9 @@ btnConfirmOrder.onclick = async ()=>{
 btnShareWhatsApp.onclick = shareWhatsApp;
 btnSendEmail.onclick = sendEmail;
 
+if(btnRefreshOrders){ btnRefreshOrders.onclick = refreshOrders; }
+if(btnExportOrdersCsv){ btnExportOrdersCsv.onclick = exportOrdersCsv; }
+
 btnAddMedicine.onclick = addMedicine;
 btnResetAdminForm.onclick = resetAdminForm;
 
@@ -1220,6 +1345,7 @@ function renderAll(){
   renderCart();
 
   adminEmailShow.textContent = ADMIN_EMAIL;
+  if(adminLogged){ renderOrders(); }
 
   if(adminLogged){
     showAdminPanel(true);
@@ -1237,6 +1363,7 @@ window.decQty = decQty;
 window.removeItem = removeItem;
 window.updateMedicine = updateMedicine;
 window.deleteMedicine = deleteMedicine;
+window.viewOrderItems = viewOrderItems;
 </script>
 
 </body>
