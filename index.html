@@ -1,554 +1,837 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ahanitya Order Portal (Single File)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Ahanitya Inventory Web App</title>
   <style>
-    :root{--brand:#14532d;--ink:#111;--muted:#667085;--bg:#f6f7fb;--card:#fff;--line:#eef1f7}
-    body{font-family:system-ui,Arial;margin:0;background:var(--bg);color:var(--ink)}
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .card{background:var(--card);border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(0,0,0,.06)}
-    .row{display:flex;gap:12px;flex-wrap:wrap}
-    input,select,button,textarea{padding:10px;border-radius:10px;border:1px solid #d7dbe7;font-size:14px}
-    button{cursor:pointer;border:0;background:var(--brand);color:#fff;padding:10px 14px}
-    button.secondary{background:#243b53}
-    button.ghost{background:#e9edf7;color:#111}
-    .hidden{display:none}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px;vertical-align:top}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef7f0;color:var(--brand);font-size:12px}
-    .muted{color:var(--muted);font-size:13px}
-    .right{text-align:right}
-    .tabs button{background:#e9edf7;color:#111}
-    .tabs button.active{background:var(--brand);color:#fff}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media (max-width: 820px){.grid2{grid-template-columns:1fr}}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    .warn{background:#fff4e5;border:1px solid #ffe0b2;color:#7a4b00;padding:10px;border-radius:12px}
-  </style>
+    :root{
+      --brand:#11799a;
+      --brand2:#0f5f79;
+      --bg:#f5f7fb;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --danger:#dc2626;
+      --ok:#16a34a;
+      --shadow: 0 10px 25px rgba(2, 6, 23, .08);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:linear-gradient(180deg, #eaf5f8 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      background:rgba(255,255,255,.7);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(15,23,42,.08);
+    }
+    .wrap{max-width:1100px; margin:0 auto; padding:16px}
+    .topbar{
+      display:flex; align-items:center; gap:12px; justify-content:space-between;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      font-weight:800; letter-spacing:.2px;
+    }
+    .logo{
+      width:38px; height:38px; border-radius:12px;
+      background: radial-gradient(circle at 30% 30%, #41c7df, var(--brand));
+      box-shadow: var(--shadow);
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px;
+      border:1px solid rgba(15,23,42,.10);
+      background:#fff;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .grid{
+      display:grid; grid-template-columns: 1.2fr .8fr; gap:16px;
+      margin-top:16px;
+    }
+    @media (max-width: 920px){
+      .grid{grid-template-columns:1fr}
+    }
+    .card{
+      background:var(--card); border-radius:var(--radius);
+      box-shadow: var(--shadow);
+      border:1px solid rgba(15,23,42,.07);
+      overflow:hidden;
+    }
+    .card h2{
+      margin:0; padding:16px 16px 0; font-size:18px;
+    }
+    .card p.sub{margin:6px 16px 16px; color:var(--muted); font-size:13px}
+    .content{padding:16px}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    @media (max-width:520px){ .row{grid-template-columns:1fr} }
+    label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px}
+    input, select{
+      width:100%;
+      padding:11px 12px;
+      border-radius:12px;
+      border:1px solid rgba(15,23,42,.14);
+      outline:none;
+      font-size:14px;
+      background:#fff;
+    }
+    input:focus, select:focus{border-color: rgba(17,121,154,.55); box-shadow: 0 0 0 4px rgba(17,121,154,.12)}
+    .btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
+    button{
+      border:none; cursor:pointer;
+      padding:11px 14px; border-radius:12px;
+      font-weight:700; font-size:14px;
+    }
+    .btn-primary{background:var(--brand); color:#fff}
+    .btn-primary:hover{background:var(--brand2)}
+    .btn-ghost{
+      background:#fff; color:var(--text);
+      border:1px solid rgba(15,23,42,.14);
+    }
+    .btn-danger{background:var(--danger); color:#fff}
+    .btn-ok{background:var(--ok); color:#fff}
+    .note{
+      font-size:12px; color:var(--muted);
+      margin-top:10px; line-height:1.35;
+    }
 
-  <!-- Firebase Phone OTP (required for OTP login) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    .hidden{display:none !important}
+    .tabs{display:flex; gap:8px; padding:10px; border-bottom:1px solid rgba(15,23,42,.08); background:#fff}
+    .tab{
+      padding:9px 12px; border-radius:999px;
+      border:1px solid rgba(15,23,42,.12);
+      background:#fff; color:var(--muted);
+      font-weight:800; font-size:13px;
+    }
+    .tab.active{
+      border-color: rgba(17,121,154,.4);
+      background: rgba(17,121,154,.10);
+      color: var(--brand2);
+    }
+
+    .tablewrap{overflow:auto; border-radius:14px; border:1px solid rgba(15,23,42,.10)}
+    table{width:100%; border-collapse:collapse; min-width:760px; background:#fff}
+    th, td{padding:10px 10px; border-bottom:1px solid rgba(15,23,42,.06); text-align:left; font-size:13px}
+    th{font-size:12px; color:var(--muted); background:rgba(2,6,23,.02)}
+    .chip{
+      display:inline-flex; align-items:center;
+      padding:5px 9px; border-radius:999px;
+      font-weight:800; font-size:12px;
+      border:1px solid rgba(15,23,42,.10);
+      background:#fff;
+    }
+    .chip.low{border-color: rgba(220,38,38,.35); background: rgba(220,38,38,.08); color: var(--danger)}
+    .chip.ok{border-color: rgba(22,163,74,.35); background: rgba(22,163,74,.08); color: var(--ok)}
+    .right{display:flex; justify-content:flex-end; gap:8px}
+    .small{padding:8px 10px; border-radius:10px; font-size:12px; font-weight:800}
+    .muted{color:var(--muted)}
+    .kpi{
+      display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px;
+    }
+    @media (max-width:520px){ .kpi{grid-template-columns:1fr} }
+    .kpi .box{
+      padding:12px; border-radius:14px;
+      border:1px solid rgba(15,23,42,.08);
+      background:rgba(255,255,255,.75);
+    }
+    .kpi .n{font-size:18px; font-weight:900}
+    .kpi .t{font-size:12px; color:var(--muted); margin-top:2px}
+    footer{padding:24px 16px; color:var(--muted); font-size:12px; text-align:center}
+    .alert{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(15,23,42,.12);
+      background:#fff;
+      font-size:13px;
+    }
+    .alert.ok{border-color: rgba(22,163,74,.35); background: rgba(22,163,74,.08); color: var(--ok)}
+    .alert.bad{border-color: rgba(220,38,38,.35); background: rgba(220,38,38,.08); color: var(--danger)}
+  </style>
 </head>
 <body>
-<div class="wrap">
-
-  <div class="card">
-    <div class="topbar">
+<header>
+  <div class="wrap topbar">
+    <div class="brand">
+      <div class="logo"></div>
       <div>
-        <h2 style="margin:0">Ahanitya Order Portal</h2>
-        <div class="muted"> </div>
-      
-      </div>
-      <div class="pill" id="envPill">Not logged in</div>
-    </div>
-  </div>
-
-  
-
-  <!-- LOGIN SELECT -->
-  <div class="card" id="loginSelector">
-    <h3 style="margin:0 0 10px">Login</h3>
-    <div class="tabs row">
-      <button id="tabOtp" class="active">Customer OTP Login</button>
-      <button id="tabPass">MR / Super Admin Password Login</button>
-    </div>
-  </div>
-
-  <!-- OTP LOGIN -->
-  <div class="card" id="otpLoginCard">
-    <div class="card" id="otpLoginCard">
-    <h3 style="margin-top:0">OTP Login (Doctor / Hospital / Distributor / Retailer)</h3>
-    <p class="muted">Enter phone number with country code (India: +91XXXXXXXXXX).</p>
-
-    <div class="row">
-      <input id="phone" placeholder="+91XXXXXXXXXX" />
-      <button id="sendOtpBtn">Send OTP</button>
-    </div>
-
-    <div id="recaptcha-container" style="margin-top:10px;"></div>
-
-    <div class="row" style="margin-top:10px;">
-      <input id="otp" placeholder="Enter OTP" />
-      <button class="secondary" id="verifyOtpBtn">Verify & Continue</button>
-    </div>
-
-    <p class="muted" id="otpMsg"></p>
-  </div>
-
-  <!-- PASSWORD LOGIN -->
-  <div class="card hidden" id="passLoginCard">
-    <h3 style="margin-top:0">Password Login (MR / Super Admin)</h3>
-    <div class="row">
-      <input id="username" placeholder="Username" value="Ahanitya86" />
-      <input id="password" placeholder="Password" type="password" value="Ahanitya@123" />
-      <button id="passLoginBtn">Login</button>
-    </div>
-    <p class="muted" id="passMsg"></p>
-  </div>
-
-  <!-- PORTAL HEADER -->
-  <div class="card hidden" id="portalCard">
-    <div class="topbar">
-      <div>
-        <h3 style="margin:0">Portal</h3>
-        <div class="muted">Logged in as: <b><span id="who"></span></b> <span class="pill" id="rolePill">-</span></div>
-      </div>
-      <button class="ghost" id="logoutBtn">Logout</button>
-    </div>
-
-    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0"/>
-
-    <div class="row">
-      <select id="businessType">
-        <option value="">Select Business Type</option>
-        <option value="DOCTOR">Doctor</option>
-        <option value="HOSPITAL">Hospital</option>
-        <option value="DISTRIBUTOR">Distributor</option>
-        <option value="RETAILER">Retail Medical Store</option>
-      </select>
-
-      <input id="partyName" placeholder="Name (Doctor/Hospital/Store)" style="flex:1;min-width:220px"/>
-      <input id="partyCity" placeholder="City" />
-      <input id="partyGst" placeholder="GST (optional)" />
-    </div>
-
-    <!-- SUPER ADMIN OVERRIDES -->
-    <div class="card hidden" id="adminBox" style="margin-top:12px">
-      <h3 style="margin-top:0">Super Admin Controls</h3>
-      <div class="row">
-        <select id="orderUnderMr" style="min-width:260px">
-          <option value="">Order Under MR (select)</option>
-        </select>
-        <input id="adminDiscount" placeholder="Discount % (e.g., 5)" type="number" min="0" max="100"/>
-        <input id="adminMrExtra" placeholder="MR Extra % (e.g., 2)" type="number" min="0" max="100"/>
-      </div>
-      <p class="muted">These values will be included in the order email.</p>
-    </div>
-  </div>
-
-  <!-- CATALOG -->
-  <div class="card hidden" id="catalogCard">
-    <div class="topbar">
-      <h3 style="margin:0">Product Catalog</h3>
-      <input id="search" placeholder="Search product..." style="min-width:260px"/>
-    </div>
-    <p class="muted" style="margin-top:8px">Prices auto-adjust based on selected business type. (Edit multipliers in code if needed.)</p>
-
-    <div style="overflow:auto;margin-top:10px">
-      <table>
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Strength</th>
-            <th>Type</th>
-            <th>Category</th>
-            <th class="right">Price (₹)</th>
-            <th class="right">Qty</th>
-            <th class="right">Add</th>
-          </tr>
-        </thead>
-        <tbody id="catalogBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- CART / ORDER -->
-  <div class="card hidden" id="cartCard">
-    <div class="topbar">
-      <h3 style="margin:0">Your Order</h3>
-      <span class="pill" id="cartCount">0 items</span>
-    </div>
-
-    <div style="overflow:auto;margin-top:10px">
-      <table>
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th class="right">Price</th>
-            <th class="right">Qty</th>
-            <th class="right">Total</th>
-            <th class="right">Remove</th>
-          </tr>
-        </thead>
-        <tbody id="cartBody"></tbody>
-      </table>
-    </div>
-
-    <div class="row" style="justify-content:flex-end;margin-top:10px">
-      <div class="right">
-        <div class="muted">Grand Total</div>
-        <div style="font-size:20px;font-weight:800">₹ <span id="grandTotal">0</span></div>
+        Ahanitya Inventory Web App
+        <div class="muted" style="font-weight:700; font-size:12px">User Login + Admin Inventory Update</div>
       </div>
     </div>
-
-    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0"/>
-
-    <h3 style="margin:0 0 10px">Delivery Details</h3>
-    <div class="grid2">
-      <input id="deliveryAddress" placeholder="Delivery Address" />
-      <input id="pincode" placeholder="Pincode" />
-    </div>
-    <div class="row" style="margin-top:10px">
-      <textarea id="notes" placeholder="Notes / Requirements" style="width:100%;min-height:90px"></textarea>
-    </div>
-
-    <div class="row" style="margin-top:10px;justify-content:flex-end">
-      <button id="submitOrderBtn">Submit Order (Email)</button>
-    </div>
-
-    <p class="muted" id="orderMsg"></p>
+    <div class="pill" id="sessionPill">Not logged in</div>
   </div>
+</header>
 
-</div>
+<main class="wrap">
+  <div class="grid">
+    <!-- LEFT: APP -->
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" id="tabUser">User Login</button>
+        <button class="tab" id="tabAdmin">Admin Login</button>
+        <button class="tab hidden" id="tabInventory">Inventory</button>
+      </div>
+
+      <!-- USER LOGIN -->
+      <section id="panelUser" class="content">
+        <h2>User Login</h2>
+        <p class="sub">Login using Email, Name, and Phone number.</p>
+
+        <div class="row">
+          <div>
+            <label>Email</label>
+            <input id="uEmail" type="email" placeholder="name@example.com" />
+          </div>
+          <div>
+            <label>Name</label>
+            <input id="uName" type="text" placeholder="Full name" />
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label>Phone</label>
+          <input id="uPhone" type="tel" placeholder="10-digit mobile number" />
+        </div>
+
+        <div class="btns">
+          <button class="btn-primary" id="btnUserLogin">Login</button>
+          <button class="btn-ghost" id="btnUserLogout">Logout</button>
+          <button class="btn-ghost" id="btnGoInventoryFromUser">View Inventory</button>
+        </div>
+
+        <div class="note">
+          Inventory data is stored in your browser (localStorage). If you open this on another phone/device, the data will not sync automatically.
+        </div>
+        <div id="userAlert" class="alert hidden"></div>
+      </section>
+
+      <!-- ADMIN LOGIN -->
+      <section id="panelAdmin" class="content hidden">
+        <h2>Admin Login</h2>
+        <p class="sub">Admin can update Stock, Price, and MRP.</p>
+
+        <div class="row">
+          <div>
+            <label>Admin ID (Email)</label>
+            <input id="aEmail" type="email" placeholder="admin@example.com" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input id="aPass" type="password" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="btn-primary" id="btnAdminLogin">Login as Admin</button>
+          <button class="btn-ghost" id="btnAdminLogout">Logout</button>
+          <button class="btn-ghost" id="btnGoInventoryFromAdmin">Open Inventory Panel</button>
+        </div>
+
+        <div class="note">
+          Default Admin credentials are inside this HTML file (you can change them in the code).
+        </div>
+        <div id="adminAlert" class="alert hidden"></div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section id="panelInventory" class="content hidden">
+        <h2>Inventory</h2>
+        <p class="sub">Search and view medicines. Admin can add/edit/delete.</p>
+
+        <div class="row">
+          <div>
+            <label>Search</label>
+            <input id="searchBox" type="text" placeholder="Search by medicine name..." />
+          </div>
+          <div>
+            <label>Filter</label>
+            <select id="stockFilter">
+              <option value="all">All</option>
+              <option value="in">In stock</option>
+              <option value="low">Low stock (≤ 10)</option>
+              <option value="out">Out of stock</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div class="box">
+            <div class="n" id="kpiTotal">0</div>
+            <div class="t">Total Items</div>
+          </div>
+          <div class="box">
+            <div class="n" id="kpiInStock">0</div>
+            <div class="t">In Stock</div>
+          </div>
+          <div class="box">
+            <div class="n" id="kpiLow">0</div>
+            <div class="t">Low / Out</div>
+          </div>
+        </div>
+
+        <div class="btns" style="margin-top:14px">
+          <button class="btn-primary hidden" id="btnAddNew">+ Add Medicine</button>
+          <button class="btn-ghost" id="btnExport">Export JSON</button>
+          <button class="btn-ghost" id="btnImport">Import JSON</button>
+          <button class="btn-danger hidden" id="btnReset">Reset Demo Data</button>
+        </div>
+
+        <div class="tablewrap" style="margin-top:12px">
+          <table>
+            <thead>
+              <tr>
+                <th>Medicine</th>
+                <th>Strength / Pack</th>
+                <th>MRP (₹)</th>
+                <th>Price (₹)</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th style="width:210px">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="invBody"></tbody>
+          </table>
+        </div>
+
+        <div id="invAlert" class="alert hidden"></div>
+      </section>
+    </div>
+
+    <!-- RIGHT: ADD/EDIT FORM -->
+    <div class="card">
+      <div class="content">
+        <h2 id="formTitle">Medicine Details</h2>
+        <p class="sub" id="formSub">Admins can add/edit medicines here.</p>
+
+        <div id="formLockNote" class="alert bad">
+          Admin login required to edit inventory.
+        </div>
+
+        <div id="medicineForm" class="hidden">
+          <input type="hidden" id="mId" />
+
+          <div style="margin-bottom:12px">
+            <label>Medicine Name</label>
+            <input id="mName" type="text" placeholder="e.g., Montelukast + Levocetirizine" />
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Strength / Pack</label>
+              <input id="mPack" type="text" placeholder="e.g., 10 Tablets / 10 Caps" />
+            </div>
+            <div>
+              <label>Stock Qty</label>
+              <input id="mStock" type="number" min="0" placeholder="e.g., 50" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <div>
+              <label>MRP (₹)</label>
+              <input id="mMrp" type="number" min="0" step="0.01" placeholder="e.g., 170" />
+            </div>
+            <div>
+              <label>Price (₹)</label>
+              <input id="mPrice" type="number" min="0" step="0.01" placeholder="e.g., 135" />
+            </div>
+          </div>
+
+          <div class="btns">
+            <button class="btn-ok" id="btnSave">Save</button>
+            <button class="btn-ghost" id="btnClear">Clear</button>
+          </div>
+
+          <div class="note">
+            Tip: Keep <b>Price</b> lower than <b>MRP</b> for trade margin.
+          </div>
+          <div id="formAlert" class="alert hidden"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  © <span id="yr"></span> Ahanitya Pharma Life Science LLP — Inventory Web App (Static demo)
+</footer>
 
 <script>
-/** =========================
- * SETTINGS YOU MUST FILL
- * ========================= */
-const APPS_SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_WEBAPP_URL_HERE"; // <-- paste Apps Script Web App URL
-
-// Paste Firebase config below
-const firebaseConfig = {
-  apiKey: "AIzaSyBAEpP__iHjBF9RyrSE9Uql52bgFSK64NU",
-  authDomain: "aplsl-otp.firebaseapp.com",
-  projectId: "aplsl-otp",
-  storageBucket: "aplsl-otp.firebasestorage.app",
-  messagingSenderId: "815906389527",
-  appId: "1:815906389527:web:8e52001a2467c0778aa652",
-  measurementId: "G-GNKBDTDLW0"
+/* =========================
+   CONFIG (CHANGE AS NEEDED)
+   ========================= */
+const CONFIG = {
+  appStorageKey: "ahanitya_inventory_v1",
+  sessionKey: "ahanitya_session_v1",
+  // Change these admin credentials:
+  adminEmail: "infoahanityapharmalifescellp@gmail.com",
+  adminPassword: "Ahanitya@123",
+  lowStockThreshold: 10
 };
 
-// ✅ OTP only for Super Admin (edit numbers)
-const SUPER_ADMIN_NUMBERS = [
-  "+918487090212" // e.g. "+919876543210"
-];
+/* =========================
+   UTILITIES
+   ========================= */
+const $ = (id) => document.getElementById(id);
 
-
-/** =========================
- * PRODUCT PORTFOLIO (edit/add)
- * ========================= */
-const PRODUCTS = [
-  { sku:"AZIN-500", name:"Azithromycin Tablets I.P", strength:"500 mg", type:"Tablet", category:"Rx", mrp:700 },
-  { sku:"ASP-15", name:"Aceclofenac + Paracetamol + Serratiopeptidase", strength:"100/325/15 mg", type:"Tablet", category:"Rx", mrp:1200 },
-  { sku:"PANTO-DSR", name:"Pantoprazole + Domperidone", strength:"40/30 mg", type:"Capsule", category:"Rx", mrp:900 },
-  { sku:"MONT-LEV", name:"Montelukast + Levocetirizine", strength:"10 mg + 5 mg", type:"Tablet", category:"Rx", mrp:650 },
-  { sku:"D3-2000-STRIP", name:"Vitamin D3 Mouth Dissolving Strip", strength:"2000 IU", type:"Strip", category:"Nutraceutical", mrp:399 }
-];
-
-/** Pricing multiplier by business type (customize anytime) */
-function getPriceForRole(product, role){
-  const base = Number(product.mrp || 0);
-  const mult = { DOCTOR:1.00, HOSPITAL:0.98, RETAILER:0.92, DISTRIBUTOR:0.88 }[role] ?? 1.00;
-  return Math.round(base * mult);
+function showAlert(el, msg, kind="ok"){
+  el.classList.remove("hidden","ok","bad");
+  el.classList.add(kind === "bad" ? "bad" : "ok");
+  el.textContent = msg;
+  setTimeout(()=> el.classList.add("hidden"), 3500);
 }
 
-/** =========================
- * STATE
- * ========================= */
-let loginMode = null;         // "OTP" or "PASSWORD"
-let otpPhone = "";
-let sessionToken = null;      // password sessions
-let sessionUser = null;       // {role, username, name}
-let mrList = [];              // for Super Admin dropdown
-
-const cart = new Map(); // sku -> {product, qty, unitPrice}
-
-/** =========================
- * INIT AUTH (Firebase)
- * ========================= */
-let auth = null;
-try{
-  firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
-}catch(e){
-  // If firebaseConfig is not filled, OTP won't work. Keep password login usable.
-  console.warn("Firebase not initialized. Fill firebaseConfig to enable OTP.", e);
+function currency(n){
+  const x = Number(n || 0);
+  return x.toFixed(2);
 }
 
-/** =========================
- * TABS (OTP vs Password)
- * ========================= */
-const tabOtp = document.getElementById('tabOtp');
-const tabPass = document.getElementById('tabPass');
-const otpCard = document.getElementById('otpLoginCard');
-const passCard = document.getElementById('passLoginCard');
-
-tabOtp.onclick = () => {
-  tabOtp.classList.add('active'); tabPass.classList.remove('active');
-  otpCard.classList.remove('hidden'); passCard.classList.add('hidden');
-};
-tabPass.onclick = () => {
-  tabPass.classList.add('active'); tabOtp.classList.remove('active');
-  passCard.classList.remove('hidden'); otpCard.classList.add('hidden');
-};
-
-/** =========================
- * OTP LOGIN
- * ========================= */
-let confirmationResult = null;
-let recaptchaVerifier = null;
-
-function ensureRecaptcha(){
-  if(!auth) throw new Error("Firebase not configured. Paste firebaseConfig first.");
-  if(recaptchaVerifier) return;
-  recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+function uid(){
+  return "m_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
 }
 
-document.getElementById('sendOtpBtn').onclick = async () => {
-  const msg = document.getElementById('otpMsg');
-  msg.textContent = "";
-  try{
-    ensureRecaptcha();
-    const phone = document.getElementById('phone').value.trim();
-    if(!phone.startsWith("+")) throw new Error("Enter phone with country code. Example: +91XXXXXXXXXX");
-    // ✅ Allow OTP only for Super Admin numbers
-    if(!SUPER_ADMIN_NUMBERS.includes(phone)) throw new Error("OTP allowed only for Super Admin numbers.");
-    confirmationResult = await auth.signInWithPhoneNumber(phone, recaptchaVerifier);
-    msg.textContent = "OTP sent to your phone.";
-  }catch(e){
-    msg.textContent = "OTP error: " + (e.message || e);
+/* =========================
+   DATA: LOAD/SAVE INVENTORY
+   ========================= */
+function demoData(){
+  return [
+    { id: uid(), name:"Montelukast + Levocetirizine", pack:"10 Tablets", mrp:170, price:135, stock:45 },
+    { id: uid(), name:"Pantoprazole", pack:"10 Tablets", mrp:120, price:92, stock:18 },
+    { id: uid(), name:"Vitamin D3 60000 IU", pack:"4 Caps", mrp:110, price:78, stock:8 },
+    { id: uid(), name:"Azithromycin 500", pack:"3 Tablets", mrp:95, price:70, stock:0 }
+  ];
+}
+
+function loadInventory(){
+  const raw = localStorage.getItem(CONFIG.appStorageKey);
+  if(!raw){
+    const seed = demoData();
+    localStorage.setItem(CONFIG.appStorageKey, JSON.stringify(seed));
+    return seed;
   }
-};
-
-document.getElementById('verifyOtpBtn').onclick = async () => {
-  const msg = document.getElementById('otpMsg');
-  msg.textContent = "";
   try{
-    if(!confirmationResult) throw new Error("Please send OTP first.");
-    const code = document.getElementById('otp').value.trim();
-    const result = await confirmationResult.confirm(code);
-    loginMode = "OTP";
-    otpPhone = result.user.phoneNumber || "";
-    showPortal({ role:"SUPER_ADMIN", name: otpPhone });
+    const data = JSON.parse(raw);
+    if(!Array.isArray(data)) throw new Error("Invalid");
+    return data;
   }catch(e){
-    msg.textContent = "Verify error: " + (e.message || e);
+    const seed = demoData();
+    localStorage.setItem(CONFIG.appStorageKey, JSON.stringify(seed));
+    return seed;
   }
-};
+}
 
-/** =========================
- * PASSWORD LOGIN (MR/Admin)
- * ========================= */
-document.getElementById('passLoginBtn').onclick = async () => {
-  const msg = document.getElementById('passMsg');
-  msg.textContent = "Logging in...";
-  try{
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ action:"LOGIN_PASSWORD", username, password })
-    });
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error || "Login failed");
+function saveInventory(data){
+  localStorage.setItem(CONFIG.appStorageKey, JSON.stringify(data));
+}
 
-    loginMode = "PASSWORD";
-    sessionToken = data.token;
-    sessionUser = data.user;
-    mrList = data.mrList || [];
+let inventory = loadInventory();
 
-    showPortal(sessionUser);
-    msg.textContent = "";
-  }catch(e){
-    msg.textContent = "Login error: " + (e.message || e);
+/* =========================
+   SESSION
+   ========================= */
+function getSession(){
+  const raw = localStorage.getItem(CONFIG.sessionKey);
+  if(!raw) return null;
+  try{ return JSON.parse(raw); }catch{ return null; }
+}
+function setSession(sess){
+  localStorage.setItem(CONFIG.sessionKey, JSON.stringify(sess));
+  updateSessionPill();
+  syncRoleUI();
+}
+function clearSession(){
+  localStorage.removeItem(CONFIG.sessionKey);
+  updateSessionPill();
+  syncRoleUI();
+}
+function isAdmin(){
+  const s = getSession();
+  return s && s.role === "admin";
+}
+function isUser(){
+  const s = getSession();
+  return s && s.role === "user";
+}
+
+function updateSessionPill(){
+  const s = getSession();
+  if(!s){
+    $("sessionPill").textContent = "Not logged in";
+    return;
   }
-};
-
-/** =========================
- * SHOW PORTAL
- * ========================= */
-function showPortal(user){
-  document.getElementById('envPill').textContent = "Logged in";
-  document.getElementById('loginSelector').classList.add('hidden');
-  otpCard.classList.add('hidden');
-  passCard.classList.add('hidden');
-
-  document.getElementById('portalCard').classList.remove('hidden');
-  document.getElementById('catalogCard').classList.remove('hidden');
-  document.getElementById('cartCard').classList.remove('hidden');
-
-  document.getElementById('who').textContent = user.name || user.username || "";
-  document.getElementById('rolePill').textContent = user.role || "-";
-
-  // super admin controls
-  const adminBox = document.getElementById('adminBox');
-  if(user.role === "SUPER_ADMIN"){
-    adminBox.classList.remove('hidden');
-    const sel = document.getElementById('orderUnderMr');
-    sel.innerHTML = '<option value="">Order Under MR (select)</option>' +
-      mrList.map(m => `<option value="${m.username}">${m.name} (${m.username})</option>`).join('');
+  if(s.role === "admin"){
+    $("sessionPill").textContent = "Admin: " + s.email;
   }else{
-    adminBox.classList.add('hidden');
+    $("sessionPill").textContent = "User: " + s.name + " (" + s.phone + ")";
+  }
+}
+
+/* =========================
+   TABS / PANELS
+   ========================= */
+function setActiveTab(tab){
+  ["tabUser","tabAdmin","tabInventory"].forEach(id => $(id).classList.remove("active"));
+  tab.classList.add("active");
+}
+
+function showPanel(which){
+  $("panelUser").classList.add("hidden");
+  $("panelAdmin").classList.add("hidden");
+  $("panelInventory").classList.add("hidden");
+
+  if(which === "user") $("panelUser").classList.remove("hidden");
+  if(which === "admin") $("panelAdmin").classList.remove("hidden");
+  if(which === "inventory") $("panelInventory").classList.remove("hidden");
+}
+
+function syncRoleUI(){
+  // Inventory tab visibility
+  $("tabInventory").classList.toggle("hidden", !(isUser() || isAdmin()));
+
+  // Admin-only buttons
+  $("btnAddNew").classList.toggle("hidden", !isAdmin());
+  $("btnReset").classList.toggle("hidden", !isAdmin());
+
+  // Right-side form lock
+  $("formLockNote").classList.toggle("hidden", isAdmin());
+  $("medicineForm").classList.toggle("hidden", !isAdmin());
+
+  // Default view behavior
+  if(!(isUser() || isAdmin())){
+    setActiveTab($("tabUser"));
+    showPanel("user");
   }
 
-  renderCatalog();
-  renderCart();
+  renderInventory();
 }
 
-document.getElementById('logoutBtn').onclick = async () => {
-  try{ if(auth) await auth.signOut(); }catch(e){}
-  location.reload();
-};
-
-/** =========================
- * CATALOG + CART
- * ========================= */
-function renderCatalog(){
-  const role = document.getElementById('businessType').value;
-  const q = (document.getElementById('search').value || '').toLowerCase();
-  const body = document.getElementById('catalogBody');
-  body.innerHTML = "";
-
-  PRODUCTS
-    .filter(p => (p.sku+p.name+p.strength+p.type+p.category).toLowerCase().includes(q))
-    .forEach(p => {
-      const price = role ? getPriceForRole(p, role) : Number(p.mrp||0);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><b>${p.sku}</b><div class="muted">${p.name}</div></td>
-        <td>${p.strength}</td>
-        <td>${p.type}</td>
-        <td>${p.category}</td>
-        <td class="right">${price}</td>
-        <td class="right"><input type="number" min="1" value="1" style="width:80px" id="qty_${p.sku}"></td>
-        <td class="right"><button>Add</button></td>
-      `;
-      tr.querySelector('button').onclick = () => {
-        if(!role){ alert("Please select Business Type first."); return; }
-        const qty = parseInt(document.getElementById(`qty_${p.sku}`).value || "1", 10);
-        addToCart(p, qty, price);
-      };
-      body.appendChild(tr);
-    });
+/* =========================
+   INVENTORY RENDER + KPIs
+   ========================= */
+function statusChip(stock){
+  const s = Number(stock || 0);
+  if(s <= 0) return `<span class="chip low">Out</span>`;
+  if(s <= CONFIG.lowStockThreshold) return `<span class="chip low">Low</span>`;
+  return `<span class="chip ok">In</span>`;
 }
 
-function addToCart(product, qty, unitPrice){
-  const existing = cart.get(product.sku);
-  if(existing){
-    existing.qty += qty;
-    existing.unitPrice = unitPrice;
-  }else{
-    cart.set(product.sku, { product, qty, unitPrice });
+function matchesFilter(item){
+  const q = ($("searchBox").value || "").trim().toLowerCase();
+  const f = $("stockFilter").value;
+
+  const nameOk = item.name.toLowerCase().includes(q) || item.pack.toLowerCase().includes(q);
+
+  let stockOk = true;
+  const s = Number(item.stock || 0);
+  if(f === "in") stockOk = s > CONFIG.lowStockThreshold;
+  if(f === "low") stockOk = s > 0 && s <= CONFIG.lowStockThreshold;
+  if(f === "out") stockOk = s <= 0;
+
+  return nameOk && stockOk;
+}
+
+function renderKPIs(list){
+  const total = list.length;
+  const inStock = list.filter(x => Number(x.stock||0) > CONFIG.lowStockThreshold).length;
+  const lowOut = total - inStock;
+
+  $("kpiTotal").textContent = total;
+  $("kpiInStock").textContent = inStock;
+  $("kpiLow").textContent = lowOut;
+}
+
+function renderInventory(){
+  const list = inventory.filter(matchesFilter);
+
+  renderKPIs(inventory);
+
+  const tbody = $("invBody");
+  tbody.innerHTML = "";
+
+  if(list.length === 0){
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No items found.</td></tr>`;
+    return;
   }
-  renderCart();
-}
 
-function removeFromCart(sku){
-  cart.delete(sku);
-  renderCart();
-}
+  for(const item of list){
+    const canEdit = isAdmin();
+    const actions = canEdit
+      ? `
+        <div class="right">
+          <button class="small btn-ghost" onclick="editItem('${item.id}')">Edit</button>
+          <button class="small btn-danger" onclick="deleteItem('${item.id}')">Delete</button>
+        </div>`
+      : `<span class="muted">View only</span>`;
 
-function renderCart(){
-  const body = document.getElementById('cartBody');
-  body.innerHTML = "";
-  let total = 0;
-  let items = 0;
-
-  cart.forEach((v, sku) => {
-    const line = v.qty * v.unitPrice;
-    total += line;
-    items += 1;
-    const tr = document.createElement('tr');
+    const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><b>${sku}</b><div class="muted">${v.product.name}</div></td>
-      <td class="right">${v.unitPrice}</td>
-      <td class="right">${v.qty}</td>
-      <td class="right">${line}</td>
-      <td class="right"><button class="secondary">Remove</button></td>
+      <td><b>${escapeHtml(item.name)}</b></td>
+      <td>${escapeHtml(item.pack)}</td>
+      <td>₹ ${currency(item.mrp)}</td>
+      <td>₹ ${currency(item.price)}</td>
+      <td><b>${Number(item.stock||0)}</b></td>
+      <td>${statusChip(item.stock)}</td>
+      <td>${actions}</td>
     `;
-    tr.querySelector('button').onclick = () => removeFromCart(sku);
-    body.appendChild(tr);
-  });
-
-  document.getElementById('grandTotal').textContent = total;
-  document.getElementById('cartCount').textContent = `${items} items`;
+    tbody.appendChild(tr);
+  }
 }
 
-document.getElementById('search').addEventListener('input', renderCatalog);
-document.getElementById('businessType').addEventListener('change', () => { renderCatalog(); });
+// Basic HTML escape for safe rendering
+function escapeHtml(str){
+  return String(str ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
-/** =========================
- * SUBMIT ORDER (Email via Apps Script)
- * ========================= */
-document.getElementById('submitOrderBtn').addEventListener('click', submitOrder);
+/* =========================
+   ADMIN CRUD
+   ========================= */
+function clearForm(){
+  $("mId").value = "";
+  $("mName").value = "";
+  $("mPack").value = "";
+  $("mMrp").value = "";
+  $("mPrice").value = "";
+  $("mStock").value = "";
+  $("formTitle").textContent = "Medicine Details";
+  $("formSub").textContent = "Admins can add/edit medicines here.";
+}
 
-async function submitOrder(){
-  const msg = document.getElementById('orderMsg');
-  msg.textContent = "";
+window.editItem = function(id){
+  if(!isAdmin()) return;
+  const item = inventory.find(x => x.id === id);
+  if(!item) return;
 
-  const businessType = document.getElementById('businessType').value;
-  const partyName = document.getElementById('partyName').value.trim();
-  const partyCity = document.getElementById('partyCity').value.trim();
-  const partyGst = document.getElementById('partyGst').value.trim();
+  $("mId").value = item.id;
+  $("mName").value = item.name;
+  $("mPack").value = item.pack;
+  $("mMrp").value = item.mrp;
+  $("mPrice").value = item.price;
+  $("mStock").value = item.stock;
 
-  if(!businessType || !partyName){
-    msg.textContent = "Please select Business Type and enter Name.";
-    return;
-  }
-  if(cart.size === 0){
-    msg.textContent = "Cart is empty. Please add items.";
-    return;
-  }
+  $("formTitle").textContent = "Edit Medicine";
+  $("formSub").textContent = "Update stock, price, and MRP then Save.";
+}
 
-  const payload = {
-    action: "SUBMIT_ORDER",
-    token: sessionToken, // null for OTP users
-    loginMode: loginMode || "",
-    loginPhone: otpPhone || "",
+window.deleteItem = function(id){
+  if(!isAdmin()) return;
+  const item = inventory.find(x => x.id === id);
+  if(!item) return;
 
-    role: businessType,
-    partyName, partyCity, partyGst,
+  const ok = confirm("Delete this medicine?\n\n" + item.name);
+  if(!ok) return;
 
-    deliveryAddress: document.getElementById('deliveryAddress').value.trim(),
-    pincode: document.getElementById('pincode').value.trim(),
-    notes: document.getElementById('notes').value.trim(),
+  inventory = inventory.filter(x => x.id !== id);
+  saveInventory(inventory);
+  renderInventory();
+  clearForm();
+  showAlert($("invAlert"), "Deleted successfully.", "ok");
+}
 
-    grandTotal: document.getElementById('grandTotal').textContent,
-    items: Array.from(cart.values()).map(v => ({
-      sku: v.product.sku,
-      name: v.product.name,
-      strength: v.product.strength,
-      type: v.product.type,
-      category: v.product.category,
-      unitPrice: v.unitPrice,
-      qty: v.qty,
-      lineTotal: v.qty * v.unitPrice
-    })),
+function addNew(){
+  if(!isAdmin()) return;
+  clearForm();
+  $("formTitle").textContent = "Add New Medicine";
+  $("formSub").textContent = "Fill details and click Save.";
+}
 
-    // default empty overrides
-    orderUnderMr: "",
-    adminDiscountPercent: "",
-    adminMrExtraPercent: ""
+/* =========================
+   IMPORT / EXPORT
+   ========================= */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(inventory, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "inventory.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showAlert($("invAlert"), "Exported inventory.json", "ok");
+}
+
+function importJSON(){
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".json,application/json";
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        if(!Array.isArray(data)) throw new Error("Invalid JSON");
+
+        // Normalize and ensure IDs
+        inventory = data.map(x => ({
+          id: x.id || uid(),
+          name: String(x.name || ""),
+          pack: String(x.pack || ""),
+          mrp: Number(x.mrp || 0),
+          price: Number(x.price || 0),
+          stock: Number(x.stock || 0),
+        }));
+
+        saveInventory(inventory);
+        renderInventory();
+        showAlert($("invAlert"), "Imported successfully.", "ok");
+      }catch(e){
+        showAlert($("invAlert"), "Import failed: invalid JSON format.", "bad");
+      }
+    };
+    reader.readAsText(file);
   };
-
-  // super admin overrides (if logged in by password)
-  if(sessionUser && sessionUser.role === "SUPER_ADMIN"){
-    payload.orderUnderMr = document.getElementById('orderUnderMr').value || "";
-    payload.adminDiscountPercent = document.getElementById('adminDiscount').value || "";
-    payload.adminMrExtraPercent = document.getElementById('adminMrExtra').value || "";
-  }
-
-  msg.textContent = "Submitting...";
-
-  try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error || "Submit failed");
-
-    msg.textContent = "✅ Order submitted successfully.";
-    cart.clear();
-    renderCart();
-  }catch(e){
-    msg.textContent = "❌ " + (e.message || e);
-  }
+  inp.click();
 }
+
+/* =========================
+   EVENTS
+   ========================= */
+$("tabUser").addEventListener("click", () => {
+  setActiveTab($("tabUser"));
+  showPanel("user");
+});
+$("tabAdmin").addEventListener("click", () => {
+  setActiveTab($("tabAdmin"));
+  showPanel("admin");
+});
+$("tabInventory").addEventListener("click", () => {
+  setActiveTab($("tabInventory"));
+  showPanel("inventory");
+  renderInventory();
+});
+
+$("btnUserLogin").addEventListener("click", () => {
+  const email = ($("uEmail").value || "").trim();
+  const name = ($("uName").value || "").trim();
+  const phone = ($("uPhone").value || "").trim();
+
+  const phoneOk = /^[0-9]{10}$/.test(phone);
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  if(!emailOk) return showAlert($("userAlert"), "Enter a valid email.", "bad");
+  if(name.length < 2) return showAlert($("userAlert"), "Enter your name.", "bad");
+  if(!phoneOk) return showAlert($("userAlert"), "Enter valid 10-digit phone.", "bad");
+
+  setSession({ role:"user", email, name, phone, ts: Date.now() });
+  showAlert($("userAlert"), "User login successful.", "ok");
+});
+
+$("btnUserLogout").addEventListener("click", () => {
+  clearSession();
+  showAlert($("userAlert"), "Logged out.", "ok");
+});
+
+$("btnGoInventoryFromUser").addEventListener("click", () => {
+  if(!(isUser() || isAdmin())) return showAlert($("userAlert"), "Please login first.", "bad");
+  setActiveTab($("tabInventory"));
+  showPanel("inventory");
+  renderInventory();
+});
+
+$("btnAdminLogin").addEventListener("click", () => {
+  const email = ($("aEmail").value || "").trim();
+  const pass = ($("aPass").value || "").trim();
+
+  if(email === CONFIG.adminEmail && pass === CONFIG.adminPassword){
+    setSession({ role:"admin", email, ts: Date.now() });
+    showAlert($("adminAlert"), "Admin login successful.", "ok");
+  }else{
+    showAlert($("adminAlert"), "Invalid admin credentials.", "bad");
+  }
+});
+
+$("btnAdminLogout").addEventListener("click", () => {
+  clearSession();
+  showAlert($("adminAlert"), "Logged out.", "ok");
+});
+
+$("btnGoInventoryFromAdmin").addEventListener("click", () => {
+  if(!isAdmin()) return showAlert($("adminAlert"), "Admin login required.", "bad");
+  setActiveTab($("tabInventory"));
+  showPanel("inventory");
+  renderInventory();
+});
+
+$("btnAddNew").addEventListener("click", addNew);
+
+$("btnSave").addEventListener("click", () => {
+  if(!isAdmin()) return;
+
+  const id = ($("mId").value || "").trim();
+  const name = ($("mName").value || "").trim();
+  const pack = ($("mPack").value || "").trim();
+  const mrp = Number(($("mMrp").value || "").trim());
+  const price = Number(($("mPrice").value || "").trim());
+  const stock = Number(($("mStock").value || "").trim());
+
+  if(name.length < 2) return showAlert($("formAlert"), "Enter medicine name.", "bad");
+  if(pack.length < 1) return showAlert($("formAlert"), "Enter pack/strength.", "bad");
+  if(isNaN(mrp) || mrp < 0) return showAlert($("formAlert"), "Enter valid MRP.", "bad");
+  if(isNaN(price) || price < 0) return showAlert($("formAlert"), "Enter valid Price.", "bad");
+  if(isNaN(stock) || stock < 0) return showAlert($("formAlert"), "Enter valid Stock.", "bad");
+
+  if(id){
+    // update
+    const idx = inventory.findIndex(x => x.id === id);
+    if(idx >= 0){
+      inventory[idx] = { ...inventory[idx], name, pack, mrp, price, stock };
+      saveInventory(inventory);
+      renderInventory();
+      showAlert($("formAlert"), "Updated successfully.", "ok");
+      showAlert($("invAlert"), "Inventory updated.", "ok");
+    }
+  }else{
+    // add
+    const item = { id: uid(), name, pack, mrp, price, stock };
+    inventory.unshift(item);
+    saveInventory(inventory);
+    renderInventory();
+    showAlert($("formAlert"), "Added successfully.", "ok");
+    showAlert($("invAlert"), "New medicine added.", "ok");
+  }
+});
+
+$("btnClear").addEventListener("click", () => clearForm());
+
+$("btnExport").addEventListener("click", exportJSON);
+$("btnImport").addEventListener("click", importJSON);
+
+$("btnReset").addEventListener("click", () => {
+  if(!isAdmin()) return;
+  const ok = confirm("Reset inventory to demo data?");
+  if(!ok) return;
+  inventory = demoData();
+  saveInventory(inventory);
+  renderInventory();
+  clearForm();
+  showAlert($("invAlert"), "Reset done.", "ok");
+});
+
+$("searchBox").addEventListener("input", renderInventory);
+$("stockFilter").addEventListener("change", renderInventory);
+
+/* =========================
+   INIT
+   ========================= */
+$("yr").textContent = new Date().getFullYear();
+updateSessionPill();
+syncRoleUI();
+clearForm();
 </script>
 </body>
 </html>
