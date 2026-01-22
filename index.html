@@ -199,6 +199,25 @@
           <input id="uPhone" type="tel" placeholder="10-digit mobile number" />
         </div>
 
+        <div style="margin-top:12px">
+          <label>Select Bucket</label>
+          <select id="uBucketSelect"></select>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Add Bucket</label>
+            <input id="newBucketName" type="text" placeholder="e.g., Doctor / Hospital / Distributor" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <div class="btns" style="margin-top:0">
+              <button class="btn-ghost" id="btnAddBucket" type="button">+ Add</button>
+              <button class="btn-danger" id="btnRemoveBucket" type="button">Remove</button>
+            </div>
+          </div>
+        </div>
+
         <div class="btns">
           <button class="btn-primary" id="btnUserLogin">Login</button>
           <button class="btn-ghost" id="btnUserLogout">Logout</button>
@@ -370,6 +389,7 @@
 const CONFIG = {
   appStorageKey: "ahanitya_inventory_v1",
   sessionKey: "ahanitya_session_v1",
+  bucketsKey: "ahanitya_buckets_v1",
   // Change these admin credentials:
   adminEmail: "infoahanityapharmalifescellp@gmail.com",
   adminPassword: "Ahanitya@123",
@@ -434,6 +454,53 @@ function saveInventory(data){
 let inventory = loadInventory();
 
 /* =========================
+   BUCKETS (USER GROUPS)
+   ========================= */
+function defaultBuckets(){
+  return ["Doctor", "Hospital", "Distributor", "Retailer"];
+}
+
+function loadBuckets(){
+  const raw = localStorage.getItem(CONFIG.bucketsKey);
+  if(!raw){
+    const seed = defaultBuckets();
+    localStorage.setItem(CONFIG.bucketsKey, JSON.stringify(seed));
+    return seed;
+  }
+  try{
+    const data = JSON.parse(raw);
+    if(!Array.isArray(data) || data.length === 0) throw new Error("Invalid");
+    return data.map(x => String(x)).filter(Boolean);
+  }catch(e){
+    const seed = defaultBuckets();
+    localStorage.setItem(CONFIG.bucketsKey, JSON.stringify(seed));
+    return seed;
+  }
+}
+
+function saveBuckets(buckets){
+  localStorage.setItem(CONFIG.bucketsKey, JSON.stringify(buckets));
+}
+
+let buckets = loadBuckets();
+
+function renderBucketSelect(){
+  const sel = $("uBucketSelect");
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = "";
+  buckets.forEach(b => {
+    const opt = document.createElement("option");
+    opt.value = b;
+    opt.textContent = b;
+    sel.appendChild(opt);
+  });
+  // restore selection if possible
+  if(current && buckets.includes(current)) sel.value = current;
+}
+
+
+/* =========================
    SESSION
    ========================= */
 function getSession(){
@@ -469,7 +536,7 @@ function updateSessionPill(){
   if(s.role === "admin"){
     $("sessionPill").textContent = "Admin: " + s.email;
   }else{
-    $("sessionPill").textContent = "User: " + s.name + " (" + s.phone + ")";
+    $("sessionPill").textContent = "User: " + s.name + " (" + s.phone + ") • Bucket: " + (s.bucket || "");
   }
 }
 
@@ -723,6 +790,7 @@ $("btnUserLogin").addEventListener("click", () => {
   const email = ($("uEmail").value || "").trim();
   const name = ($("uName").value || "").trim();
   const phone = ($("uPhone").value || "").trim();
+  const bucket = ($("uBucketSelect")?.value || "").trim();
 
   const phoneOk = /^[0-9]{10}$/.test(phone);
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -730,8 +798,9 @@ $("btnUserLogin").addEventListener("click", () => {
   if(!emailOk) return showAlert($("userAlert"), "Enter a valid email.", "bad");
   if(name.length < 2) return showAlert($("userAlert"), "Enter your name.", "bad");
   if(!phoneOk) return showAlert($("userAlert"), "Enter valid 10-digit phone.", "bad");
+  if(!bucket) return showAlert($("userAlert"), "Please select a bucket.", "bad");
 
-  setSession({ role:"user", email, name, phone, ts: Date.now() });
+  setSession({ role:"user", email, name, phone, bucket, ts: Date.now() });
   showAlert($("userAlert"), "User login successful.", "ok");
 });
 
@@ -739,6 +808,46 @@ $("btnUserLogout").addEventListener("click", () => {
   clearSession();
   showAlert($("userAlert"), "Logged out.", "ok");
 });
+
+
+/* =========================
+   BUCKET EVENTS
+   ========================= */
+$("btnAddBucket").addEventListener("click", () => {
+  const name = ($("newBucketName").value || "").trim();
+  if(name.length < 2) return showAlert($("userAlert"), "Enter bucket name.", "bad");
+
+  // Normalize (Title Case-ish)
+  const norm = name.replace(/\s+/g, " ").trim();
+  const exists = buckets.some(b => b.toLowerCase() === norm.toLowerCase());
+  if(exists) return showAlert($("userAlert"), "Bucket already exists.", "bad");
+
+  buckets.push(norm);
+  buckets = buckets.filter(Boolean);
+  saveBuckets(buckets);
+  renderBucketSelect();
+  $("uBucketSelect").value = norm;
+  $("newBucketName").value = "";
+  showAlert($("userAlert"), "Bucket added.", "ok");
+});
+
+$("btnRemoveBucket").addEventListener("click", () => {
+  const sel = $("uBucketSelect");
+  const value = (sel?.value || "").trim();
+  if(!value) return showAlert($("userAlert"), "Select a bucket to remove.", "bad");
+
+  // Prevent removing if it is the last bucket
+  if(buckets.length <= 1) return showAlert($("userAlert"), "At least 1 bucket must remain.", "bad");
+
+  const ok = confirm("Remove bucket?\n\n" + value);
+  if(!ok) return;
+
+  buckets = buckets.filter(b => b !== value);
+  saveBuckets(buckets);
+  renderBucketSelect();
+  showAlert($("userAlert"), "Bucket removed.", "ok");
+});
+
 
 $("btnGoInventoryFromUser").addEventListener("click", () => {
   if(!(isUser() || isAdmin())) return showAlert($("userAlert"), "Please login first.", "bad");
@@ -834,6 +943,7 @@ $("stockFilter").addEventListener("change", renderInventory);
    ========================= */
 $("yr").textContent = new Date().getFullYear();
 updateSessionPill();
+renderBucketSelect();
 syncRoleUI();
 clearForm();
 </script>
