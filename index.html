@@ -329,7 +329,50 @@
         <p class="sub" id="formSub">Admins can add/edit medicines here.</p>
 
         <div id="formLockNote" class="alert bad">
-          Admin login required to edit inventory.
+          Login required.
+        </div>
+
+        <div id="cartPanel" class="hidden">
+          <div class="alert ok" style="margin-top:12px">
+            Add medicines with quantity from Inventory, then share your order on WhatsApp or Email.
+          </div>
+
+          <div class="tablewrap" style="margin-top:12px">
+            <table style="min-width:520px">
+              <thead>
+                <tr>
+                  <th>Medicine</th>
+                  <th style="width:110px">Qty</th>
+                  <th style="width:120px">Price (₹)</th>
+                  <th style="width:140px">Amount (₹)</th>
+                  <th style="width:110px">Action</th>
+                </tr>
+              </thead>
+              <tbody id="cartBody"></tbody>
+            </table>
+          </div>
+
+          <div class="kpi" style="grid-template-columns:1fr 1fr; margin-top:12px">
+            <div class="box">
+              <div class="n" id="cartItems">0</div>
+              <div class="t">Items in Cart</div>
+            </div>
+            <div class="box">
+              <div class="n">₹ <span id="cartTotal">0.00</span></div>
+              <div class="t">Order Total (Price)</div>
+            </div>
+          </div>
+
+          <div class="btns" style="margin-top:12px">
+            <button class="btn-primary" id="btnShareWhatsApp" type="button">Share on WhatsApp</button>
+            <button class="btn-ghost" id="btnShareEmail" type="button">Share on Email</button>
+            <button class="btn-danger" id="btnClearCart" type="button">Clear Cart</button>
+          </div>
+
+          <div class="note">
+            Orders will be shared to <b id="orderEmailText"></b>.
+          </div>
+          <div id="cartAlert" class="alert hidden"></div>
         </div>
 
         <div id="medicineForm" class="hidden">
@@ -390,6 +433,8 @@ const CONFIG = {
   appStorageKey: "ahanitya_inventory_v1",
   sessionKey: "ahanitya_session_v1",
   bucketsKey: "ahanitya_buckets_v1",
+  cartKey: "ahanitya_cart_v1",
+  orderEmail: "ahanityapharmasuppliesllp@gmail.com",
   // Change these admin credentials:
   adminEmail: "infoahanityapharmalifescellp@gmail.com",
   adminPassword: "Ahanitya@123",
@@ -452,6 +497,176 @@ function saveInventory(data){
 }
 
 let inventory = loadInventory();
+
+/* =========================
+   CART (USER ORDER CART)
+   ========================= */
+function loadCart(){
+  const raw = localStorage.getItem(CONFIG.cartKey);
+  if(!raw) return {};
+  try{
+    const data = JSON.parse(raw);
+    return (data && typeof data === "object") ? data : {};
+  }catch{
+    return {};
+  }
+}
+function saveCart(cart){
+  localStorage.setItem(CONFIG.cartKey, JSON.stringify(cart || {}));
+}
+let cart = loadCart();
+
+function cartQty(id){
+  return Number(cart?.[id]?.qty || 0);
+}
+function cartAdd(id, delta){
+  if(!(isUser() || isAdmin())) return;
+
+  const item = inventory.find(x => x.id === id);
+  if(!item) return;
+
+  const current = cartQty(id);
+  const next = Math.max(0, current + Number(delta || 0));
+
+  const max = Math.max(0, Number(item.stock || 0));
+  if(next > max){
+    showAlert($("invAlert"), "Only " + max + " in stock.", "bad");
+    return;
+  }
+
+  if(next === 0){
+    delete cart[id];
+  }else{
+    cart[id] = {
+      id: item.id,
+      name: item.name,
+      pack: item.pack,
+      price: Number(item.price || 0),
+      mrp: Number(item.mrp || 0),
+      qty: next
+    };
+  }
+  saveCart(cart);
+  renderCart();
+  renderInventory();
+}
+
+function cartSetQty(id, qty){
+  const q = Math.max(0, Number(qty || 0));
+  const item = inventory.find(x => x.id === id);
+  if(!item) return;
+
+  const max = Math.max(0, Number(item.stock || 0));
+  if(q > max){
+    showAlert($("cartAlert"), "Only " + max + " in stock for " + item.name, "bad");
+    return;
+  }
+  if(q === 0){
+    delete cart[id];
+  }else{
+    cart[id] = { ...(cart[id] || {}), id: item.id, name: item.name, pack: item.pack, price: Number(item.price||0), mrp: Number(item.mrp||0), qty: q };
+  }
+  saveCart(cart);
+  renderCart();
+  renderInventory();
+}
+
+window.cartAdd = cartAdd;
+
+function buildOrderText(){
+  const s = getSession();
+  const lines = [];
+  lines.push("Ahanitya Pharma Life Science LLP - Order Request");
+  lines.push("Date: " + new Date().toLocaleString());
+  if(s && s.role === "user"){
+    lines.push("");
+    lines.push("Customer Details:");
+    lines.push("Name: " + s.name);
+    lines.push("Email: " + s.email);
+    lines.push("Phone: " + s.phone);
+    lines.push("Bucket: " + (s.bucket || ""));
+  }
+  lines.push("");
+  lines.push("Order Items:");
+  let total = 0;
+  let count = 0;
+
+  for(const id of Object.keys(cart)){
+    const c = cart[id];
+    const qty = Number(c.qty || 0);
+    if(qty <= 0) continue;
+    const price = Number(c.price || 0);
+    const amt = price * qty;
+    total += amt;
+    count += qty;
+    lines.push("- " + c.name + " (" + c.pack + ") | Qty: " + qty + " | Price: ₹" + currency(price) + " | Amount: ₹" + currency(amt));
+  }
+  lines.push("");
+  lines.push("Total Qty: " + count);
+  lines.push("Total Amount (Price): ₹" + currency(total));
+  lines.push("");
+  lines.push("Please confirm availability, scheme (if any), and expected dispatch timeline.");
+  return lines.join("\n");
+}
+
+function renderCart(){
+  const tbody = $("cartBody");
+  if(!tbody) return;
+
+  const ids = Object.keys(cart);
+  // Clean cart for deleted items
+  let changed = false;
+  for(const id of ids){
+    const inv = inventory.find(x => x.id === id);
+    if(!inv){ delete cart[id]; changed = true; }
+  }
+  if(changed) saveCart(cart);
+
+  const rows = Object.keys(cart)
+    .map(id => cart[id])
+    .filter(c => Number(c.qty||0) > 0);
+
+  tbody.innerHTML = "";
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="5" class="muted">Cart is empty. Go to Inventory and click <b>+ Add</b>.</td></tr>`;
+    $("cartItems").textContent = "0";
+    $("cartTotal").textContent = "0.00";
+    return;
+  }
+
+  let totalQty = 0;
+  let totalAmt = 0;
+
+  for(const c of rows){
+    const qty = Number(c.qty || 0);
+    const price = Number(c.price || 0);
+    const amt = qty * price;
+    totalQty += qty;
+    totalAmt += amt;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${escapeHtml(c.name)}</b><div class="muted">${escapeHtml(c.pack)}</div></td>
+      <td>
+        <div class="right" style="justify-content:flex-start">
+          <button class="small btn-ghost" type="button" onclick="cartAdd('${c.id}',-1)">-</button>
+          <input style="width:56px; padding:8px 8px; border-radius:10px" type="number" min="0" value="${qty}" oninput="cartSetQty('${c.id}', this.value)" />
+          <button class="small btn-primary" type="button" onclick="cartAdd('${c.id}',1)">+</button>
+        </div>
+      </td>
+      <td>₹ ${currency(price)}</td>
+      <td>₹ ${currency(amt)}</td>
+      <td><button class="small btn-danger" type="button" onclick="cartSetQty('${c.id}',0)">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  $("cartItems").textContent = String(totalQty);
+  $("cartTotal").textContent = currency(totalAmt);
+}
+
+window.cartSetQty = cartSetQty;
+
 
 /* =========================
    BUCKETS (USER GROUPS)
@@ -566,21 +781,26 @@ function syncRoleUI(){
   $("btnAddNew").classList.toggle("hidden", !isAdmin());
   $("btnReset").classList.toggle("hidden", !isAdmin());
 
-  // Right-side form lock
-  $("formLockNote").classList.toggle("hidden", isAdmin());
+  // Right-side panels
+  // - Admin: show inventory form
+  // - User: show cart panel
+  // - Logged out: show lock note
   $("medicineForm").classList.toggle("hidden", !isAdmin());
+  $("cartPanel").classList.toggle("hidden", !isUser());
+  $("formLockNote").classList.toggle("hidden", (isAdmin() || isUser()));
 
   // Default view behavior
-  if(isAdmin()){
-    // Keep admin panel accessible
-  }
   if(!(isUser() || isAdmin())){
     // If logged out, return to user panel
     setActiveTab($("tabUser"));
     showPanel("user");
   }
 
+  // Keep order email label updated
+  $("orderEmailText").textContent = CONFIG.orderEmail;
+
   renderInventory();
+  renderCart();
 }
 
 /* =========================
@@ -633,13 +853,26 @@ function renderInventory(){
 
   for(const item of list){
     const canEdit = isAdmin();
-    const actions = canEdit
-      ? `
+    const isU = isUser();
+    const qtyInCart = cartQty(item.id);
+
+    let actions = `<span class="muted">View only</span>`;
+    if(canEdit){
+      actions = `
         <div class="right">
           <button class="small btn-ghost" onclick="editItem('${item.id}')">Edit</button>
           <button class="small btn-danger" onclick="deleteItem('${item.id}')">Delete</button>
-        </div>`
-      : `<span class="muted">View only</span>`;
+        </div>`;
+    }else if(isU){
+      const s = Number(item.stock || 0);
+      const disabled = (s <= 0) ? "disabled" : "";
+      actions = `
+        <div class="right" style="align-items:center">
+          <span class="chip" title="Quantity in cart">${qtyInCart}</span>
+          <button class="small btn-ghost" ${disabled} onclick="cartAdd('${item.id}',-1)">-</button>
+          <button class="small btn-primary" ${disabled} onclick="cartAdd('${item.id}',1)">+ Add</button>
+        </div>`;
+    }
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -937,6 +1170,35 @@ $("btnReset").addEventListener("click", () => {
 
 $("searchBox").addEventListener("input", renderInventory);
 $("stockFilter").addEventListener("change", renderInventory);
+
+
+/* =========================
+   CART EVENTS (SHARE ORDER)
+   ========================= */
+$("btnClearCart").addEventListener("click", () => {
+  cart = {};
+  saveCart(cart);
+  renderCart();
+  renderInventory();
+  showAlert($("cartAlert"), "Cart cleared.", "ok");
+});
+
+$("btnShareWhatsApp").addEventListener("click", () => {
+  if(Object.keys(cart).length === 0) return showAlert($("cartAlert"), "Cart is empty.", "bad");
+  const text = buildOrderText() + "\n\nSend to: " + CONFIG.orderEmail;
+  const url = "https://wa.me/?text=" + encodeURIComponent(text);
+  window.open(url, "_blank");
+});
+
+$("btnShareEmail").addEventListener("click", () => {
+  if(Object.keys(cart).length === 0) return showAlert($("cartAlert"), "Cart is empty.", "bad");
+  const subject = "Medicine Order Request - Ahanitya";
+  const body = buildOrderText();
+  const mailto = "mailto:" + encodeURIComponent(CONFIG.orderEmail) +
+    "?subject=" + encodeURIComponent(subject) +
+    "&body=" + encodeURIComponent(body);
+  window.location.href = mailto;
+});
 
 /* =========================
    INIT
