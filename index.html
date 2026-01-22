@@ -1187,7 +1187,7 @@ $("btnClearCart").addEventListener("click", () => {
 $("btnShareWhatsApp").addEventListener("click", () => {
   if(Object.keys(cart).length === 0) return showAlert($("cartAlert"), "Cart is empty.", "bad");
   const text = buildOrderText() + "\n\nSend to: " + CONFIG.orderEmail;
-  const url = "https://wa.me/?text=" + encodeURIComponent(text);
+  const url = "https://wa.me/918487090212?text=" + encodeURIComponent(text);
   window.open(url, "_blank");
 });
 
