@@ -367,10 +367,6 @@ body:not([data-theme="dark"]) td{
     import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } 
       from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } 
-      from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
-
-
     // ✅ 1) PUT YOUR FIREBASE CONFIG HERE
     const firebaseConfig = {
       apiKey: "AIzaSyCneC5CT9qfM8myRfoMZ7N4efUezDYMbLY",
@@ -386,12 +382,11 @@ body:not([data-theme="dark"]) td{
 
     // Fixed receiver + WhatsApp
     const RECEIVER_EMAIL = "infoahanityapharmalifescellp@gmail.com";
-    const WHATSAPP_NUMBER = "918487090212"; // +91 8487090212 (no +)
+    const WHATSAPP_NUMBER = "917984174538"; // +91 79841 74538 (no +)
 
     // ---------- Init ----------
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const storage = getStorage(app);
     emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
     // ---------- UI Helpers ----------
@@ -472,32 +467,6 @@ body:not([data-theme="dark"]) td{
       return items;
     }
 
-// ---------- Prescription Upload (Firebase Storage) ----------
-async function uploadPrescriptionIfAny(businessType) {
-  const fileInput = document.getElementById("custPrescription");
-  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
-  if (!file) return ""; // nothing to upload
-
-  // Customer: enforce file
-  if (businessType === "Customer" && !file) return "";
-
-  // Create a unique path
-  const safeName = (file.name || "prescription").replace(/[^a-zA-Z0-9._-]/g, "_");
-  const ts = Date.now();
-  const userEmail = (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "guest";
-  const safeEmail = userEmail.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-  const path = `prescriptions/${safeEmail}/${ts}_${safeName}`;
-  const refObj = storageRef(storage, path);
-
-  // Upload
-  await uploadBytes(refObj, file, { contentType: file.type || "application/octet-stream" });
-
-  // Get public download URL
-  const url = await getDownloadURL(refObj);
-  return url || "";
-}
-
     function buildOrderText(payload) {
       const lines = [];
       lines.push("📦 *Ahanitya Order*");
@@ -507,8 +476,8 @@ async function uploadPrescriptionIfAny(businessType) {
       lines.push(`📧 Email: ${payload.customer_email}`);
       lines.push(`📞 Contact: ${payload.customer_phone}`);
       lines.push(`🏢 Business Type: ${payload.business_type || ""}`);
-      if (payload.prescription_url) {
-        lines.push(`🧾 Prescription Link: ${payload.prescription_url}`);
+      if ((payload.business_type || "") === "Customer") {
+        lines.push(`🧾 Prescription Copy Attached: ${payload.prescription_attached || "No"}`);
       }
       lines.push(`👥 Referred By: ${payload.referred_by}`);
       if (payload.referred_by === "Yes") {
@@ -595,6 +564,7 @@ async function uploadPrescriptionIfAny(businessType) {
         referrer_name: $("referrerName") ? $("referrerName").value.trim() : "",
         referrer_designation: $("referrerDesignation") ? $("referrerDesignation").value.trim() : "",
         referrer_email: $("referrerEmail") ? $("referrerEmail").value.trim() : "",
+        prescription_attached: (document.getElementById("prescriptionFile") && document.getElementById("prescriptionFile").files && document.getElementById("prescriptionFile").files.length > 0) ? "Yes" : "No",
       };
 
       if (!payload.customer_name || !payload.customer_address || !payload.customer_email || !payload.customer_phone || !payload.business_type) {
@@ -602,25 +572,6 @@ async function uploadPrescriptionIfAny(businessType) {
         $("orderStatus").className = "status err";
         return;
       }
-
-// Upload prescription (Customer only) and include link in WhatsApp + Email text
-const selectedBusiness = payload.business_type;
-const presFile = document.getElementById("custPrescription")?.files?.[0];
-
-if (selectedBusiness === "Customer" && !presFile) {
-  $("orderStatus").textContent = "Prescription upload is required for Customer orders.";
-  $("orderStatus").className = "status err";
-  return;
-}
-
-try {
-  payload.prescription_url = await uploadPrescriptionIfAny(selectedBusiness);
-} catch (err) {
-  console.error(err);
-  $("orderStatus").textContent = "Prescription upload failed. Please try again or send prescription separately.";
-  $("orderStatus").className = "status err";
-  return;
-}
 
       const orderText = buildOrderText(payload);
 
@@ -658,17 +609,6 @@ try {
     // Init page
     renderMedicineRows();
 
-// Show prescription upload ONLY for Customer category
-const custBusiness = document.getElementById("custBusiness");
-const prescriptionUpload = document.getElementById("prescriptionUpload");
-if (custBusiness && prescriptionUpload) {
-  custBusiness.addEventListener("change", () => {
-    prescriptionUpload.style.display = (custBusiness.value === "Customer") ? "block" : "none";
-  });
-  // initial
-  prescriptionUpload.style.display = (custBusiness.value === "Customer") ? "block" : "none";
-}
-
     // Top submit button triggers same action
     const btnSubmitTop = document.getElementById("btnSubmitTop");
     if (btnSubmitTop) {
@@ -694,6 +634,27 @@ if (custBusiness && prescriptionUpload) {
           document.getElementById("referrerFields3").style ("display","none");
         }
       });
+    }
+
+
+    // ---------- Customer prescription placeholder ----------
+    const custBusinessSel = document.getElementById("custBusiness");
+    const prescriptionWrap = document.getElementById("prescriptionWrap");
+    const prescriptionFile = document.getElementById("prescriptionFile");
+
+    function togglePrescription() {
+      if (!custBusinessSel || !prescriptionWrap) return;
+      if (custBusinessSel.value === "Customer") {
+        prescriptionWrap.classList.remove("hide");
+      } else {
+        prescriptionWrap.classList.add("hide");
+        if (prescriptionFile) prescriptionFile.value = "";
+      }
+    }
+
+    if (custBusinessSel) {
+      custBusinessSel.addEventListener("change", togglePrescription);
+      togglePrescription(); // init
     }
 
     $("custEmail").addEventListener("focus", () => {
@@ -802,9 +763,15 @@ if (custBusiness && prescriptionUpload) {
             <option>Stockist</option>
             <option>Retailer</option>
             <option>W/R</option>
-            <option>Hospital Supplies</option>
-            <option value="Customer">Customer</option>
+                      <option>Customer</option>
+            <option>Hospital</option>
           </select>
+        </div>
+
+        <div id="prescriptionWrap" class="hide">
+          <label>Prescription Copy (Customer only)</label>
+          <input id="prescriptionFile" type="file" accept="image/*" />
+          <div class="muted" style="margin-top:6px">Attach prescription image here (optional). You can also share it directly on WhatsApp/email while sending the order.</div>
         </div>
         <div>
           <label>Referred By</label>
@@ -825,12 +792,6 @@ if (custBusiness && prescriptionUpload) {
         <div>
           <label>Address</label>
           <input id="custAddress" type="text" placeholder="Full delivery address" />
-        </div>
-
-        <div id="prescriptionUpload" style="display:none;">
-          <label>Attach Prescription Copy (Customer only)</label>
-          <input type="file" id="custPrescription" accept=".jpg,.jpeg,.png,.pdf" />
-          <div class="muted">Upload prescription image or PDF (recommended ≤ 5MB). A link will be sent on WhatsApp.</div>
         </div>
       </div>
 
@@ -869,7 +830,7 @@ if (custBusiness && prescriptionUpload) {
       <div class="status" id="orderStatus"></div>
 
       <div class="note" style="margin-top:12px">
-        Orders will be emailed to <b>infoahanityapharmalifescellp@gmail.com</b> and also shared on WhatsApp to <b>+91 8487090212</b>.
+        Orders will be emailed to <b>infoahanityapharmalifescellp@gmail.com</b> and also shared on WhatsApp to <b>+91 79841 74538</b>.
         <p><strong>*</strong>Orders placed on or before 13:00 hrs (1:00 PM) will be processed and delivered on the same day</p>
         <p><strong>*</strong>We accept and deliver orders on Sundays and public holidays as well. Same-day delivery applies for orders placed before 13:00 hrs, subject to availability.</p>
         <p><strong>*</strong>Emergency requirements may be accommodated on a priority basis (subject to availability).</p>
