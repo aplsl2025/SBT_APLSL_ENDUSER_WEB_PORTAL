@@ -51,7 +51,17 @@
     .status{font-size:13px;margin-top:8px}
     .status.ok{color:#76ffb1}
     .status.err{color:#ff9aa4}
-    .na-text{display:inline-block;color:var(--danger);font-weight:800;font-size:12px}
+    .na-text{
+  display:inline-block;
+  background:#e6f6fa;
+  color:#1b8ea6;
+  border:1px solid #1b8ea6;
+  padding:4px 10px;
+  border-radius:999px;
+  font-weight:700;
+  font-size:12px;
+  letter-spacing:.3px;
+}
   
     /* --- Alignment fix: Order Details & Medicines table ONLY --- */
     .grid.grid-2{
@@ -64,12 +74,11 @@
     table{
       table-layout: fixed;
     }
-        th:nth-child(1), td:nth-child(1){ width: 45px; }
+    th:nth-child(1), td:nth-child(1){ width: 45px; }
     th:nth-child(2), td:nth-child(2){ width: 130px; }
-    th:nth-child(3), td:nth-child(3){ width: 230px; }
-    th:nth-child(4), td:nth-child(4){ width: 120px; } /* Price */
-    th:nth-child(5), td:nth-child(5){ width: 130px; } /* Qty */
-    th:nth-child(6), td:nth-child(6){ width: 160px; } /* Measurement */
+    th:nth-child(3), td:nth-child(3){ width: 185px; }
+    th:nth-child(4), td:nth-child(4){ width: 140px; }
+    th:nth-child(5), td:nth-child(5){ width: 160px; }
 
     .qty{ width:100%; }
     .uom{ width:100%; }
@@ -352,7 +361,348 @@ body:not([data-theme="dark"]) td{
   <!-- EmailJS -->
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
-  
+  <!-- Firebase (Auth) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } 
+      from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } 
+      from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
+
+    // ✅ 1) PUT YOUR FIREBASE CONFIG HERE
+    const firebaseConfig = {
+      apiKey: "AIzaSyCneC5CT9qfM8myRfoMZ7N4efUezDYMbLY",
+      authDomain: "ahanitya-order-app.firebaseapp.com",
+      projectId: "ahanitya-order-app",
+      appId: "1:107492901712:web:b53eed0e9934ff6f1b6255"
+    };
+
+    // ✅ 2) PUT YOUR EMAILJS DETAILS HERE
+    const EMAILJS_PUBLIC_KEY = "bKeNAq67qFjMMOtmO";
+    const EMAILJS_SERVICE_ID = "service_94vs7qt";
+    const EMAILJS_TEMPLATE_ID = "template_9qtgzil";
+
+    // Fixed receiver + WhatsApp
+    const RECEIVER_EMAIL = "infoahanityapharmalifescellp@gmail.com";
+    const WHATSAPP_NUMBER = "918487090212"; // +91 8487090212 (no +)
+
+    // ---------- Init ----------
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+
+    // ---------- UI Helpers ----------
+    const $ = (id) => document.getElementById(id);
+    const show = (el) => el.classList.remove("hide");
+    const hide = (el) => el.classList.add("hide");
+
+    // ---------- Medicines (Edit your list) ----------
+    const MEDICINES = [
+      { brand: "AZIN-500", strength: "Azithromycin Tablets I.P 500 mg" , available: true },
+      { brand: "ASP", strength: "Aceclofenac 100 mg + Paracetamol 325 mg + Serratiopeptidase 15 mg" , available: true },
+      { brand: "A-SUNAC", strength: "Aceclofenac 100 mg + Paracetamol 325 mg" , available: true },
+      { brand: "APLSL-DiaMet", strength: "Glimepiride 2 mg + Metformin HCl (ER)" , available: false },
+      { brand: "APLSL-Lulizid", strength: "Luliconazole 1%" , available: false },
+      { brand: "Ahanitya-Ketozin", strength: "Ketoconazole 2%" , available: false },
+      { brand: "APLSL-Cutiderm", strength: "Itraconazole 1% + Ofloxacin 0.75% + Ornidazole 2% + Clobetasol 0.05%" , available: false },
+      { brand: "Ahanitya-AmbroLev", strength: "Ambroxol 60 mg + Levocetirizine 2.5 mg + Paracetamol 500 mg + Phenylephrine 5 mg" , available: false },
+      { brand: "PANTO-DSR", strength: "Pantoprazole 40 mg + Domperidone 30 mg" , available: true },
+      { brand: "LE-MONT", strength: "Montelukast 10 mg + Levocetirizine 5 mg" , available: true }
+    ];
+
+    function renderMedicineRows() {
+      const tbody = $("medBody");
+      tbody.innerHTML = "";
+      MEDICINES.forEach((item, idx) => {
+        const keyRaw = `${item.brand} (${item.strength})`;
+        const key = escapeHtml(keyRaw);
+
+        // Availability (set available:false in MEDICINES to show Not Available)
+        const isNA = (item.available === false);
+        const qtyHtml = isNA
+          ? `<span class="na-text">Updating Soon 🚀</span>`
+          : `<input type="number" min="0" step="1" value="0" data-med="${key}" class="qty" style="max-width:110px">`;
+        const uomHtml = isNA
+          ? `<span class="na-text">—</span>`
+          : `<select class="uom" data-uom-med="${key}" style="max-width:140px">
+               <option value="Box">Box</option>
+               <option value="Strip">Strip</option>
+               <option value="Each">Each</option>
+             </select>`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(item.brand)}</td>
+          <td>${escapeHtml(item.strength)}</td>
+          <td class="right">${qtyHtml}</td>
+          <td class="right">${uomHtml}</td>
+`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    }
+
+    function getOrderItems() {
+      const qtyInputs = Array.from(document.querySelectorAll(".qty"));
+      const uomInputs = Array.from(document.querySelectorAll(".uom"));
+
+      // Build a map: medicine -> unit
+      const uomMap = new Map(
+        uomInputs.map(sel => [sel.getAttribute("data-uom-med"), sel.value])
+      );
+
+      const items = qtyInputs
+        .map(inp => {
+          const med = inp.getAttribute("data-med");
+          return {
+            med,
+            qty: Number(inp.value || 0),
+            uom: uomMap.get(med) || "Box"
+          };
+        })
+        .filter(x => x.qty > 0);
+
+      return items;
+    }
+
+// ---------- Prescription Upload (Firebase Storage) ----------
+async function uploadPrescriptionIfAny(businessType) {
+  const fileInput = document.getElementById("custPrescription");
+  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+  if (!file) return ""; // nothing to upload
+
+  // Customer: enforce file
+  if (businessType === "Customer" && !file) return "";
+
+  // Create a unique path
+  const safeName = (file.name || "prescription").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const ts = Date.now();
+  const userEmail = (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "guest";
+  const safeEmail = userEmail.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+  const path = `prescriptions/${safeEmail}/${ts}_${safeName}`;
+  const refObj = storageRef(storage, path);
+
+  // Upload
+  await uploadBytes(refObj, file, { contentType: file.type || "application/octet-stream" });
+
+  // Get public download URL
+  const url = await getDownloadURL(refObj);
+  return url || "";
+}
+
+    function buildOrderText(payload) {
+      const lines = [];
+      lines.push("📦 *Ahanitya Order*");
+      lines.push("");
+      lines.push(`👤 Name: ${payload.customer_name}`);
+      lines.push(`📍 Address: ${payload.customer_address}`);
+      lines.push(`📧 Email: ${payload.customer_email}`);
+      lines.push(`📞 Contact: ${payload.customer_phone}`);
+      lines.push(`🏢 Business Type: ${payload.business_type || ""}`);
+      if (payload.prescription_url) {
+        lines.push(`🧾 Prescription Link: ${payload.prescription_url}`);
+      }
+      lines.push(`👥 Referred By: ${payload.referred_by}`);
+      if (payload.referred_by === "Yes") {
+        lines.push(`🙍 Referrer Name: ${payload.referrer_name}`);
+        lines.push(`🎓 Referrer Designation: ${payload.referrer_designation}`);
+        if (payload.referrer_email) {
+          lines.push(`📧 Referrer Email: ${payload.referrer_email}`);
+        }
+      }
+      lines.push("");
+      lines.push("💊 *Medicines Ordered:*");
+      payload.items.forEach((it, i) => lines.push(`${i+1}. ${it.med} — Qty: ${it.qty} ${it.uom}`));
+      lines.push("");
+      lines.push(`🗓 Date/Time: ${new Date().toLocaleString()}`);
+      return lines.join("\n");
+    }
+
+    // ---------- Auth ----------
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        hide($("authCard"));
+        show($("orderCard"));
+        $("who").textContent = user.email;
+      } else {
+        show($("authCard"));
+        hide($("orderCard"));
+        $("who").textContent = "";
+      }
+    });
+
+    $("btnLogin").addEventListener("click", async () => {
+      $("authStatus").textContent = "";
+      const email = $("loginEmail").value.trim();
+      const pass = $("loginPass").value.trim();
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        $("authStatus").textContent = "Logged in successfully ✅";
+        $("authStatus").className = "status ok";
+      } catch (e) {
+        $("authStatus").textContent = (e?.message || "Login failed");
+        $("authStatus").className = "status err";
+      }
+    });
+
+    $("btnSignup").addEventListener("click", async () => {
+      $("authStatus").textContent = "";
+      const email = $("loginEmail").value.trim();
+      const pass = $("loginPass").value.trim();
+      try {
+        await createUserWithEmailAndPassword(auth, email, pass);
+        $("authStatus").textContent = "Account created & logged in ✅";
+        $("authStatus").className = "status ok";
+      } catch (e) {
+        $("authStatus").textContent = (e?.message || "Sign-up failed");
+        $("authStatus").className = "status err";
+      }
+    });
+
+    $("btnLogout").addEventListener("click", async () => {
+      await signOut(auth);
+    });
+
+    // ---------- Submit Order ----------
+    $("btnSubmit").addEventListener("click", async () => {
+      $("orderStatus").textContent = "";
+
+      // Validate
+      const items = getOrderItems();
+      if (items.length === 0) {
+        $("orderStatus").textContent = "Please select at least 1 medicine with quantity.";
+        $("orderStatus").className = "status err";
+        return;
+      }
+
+      const payload = {
+        customer_name: $("custName").value.trim(),
+        customer_address: $("custAddress").value.trim(),
+        customer_email: $("custEmail").value.trim(),
+        customer_phone: $("custPhone").value.trim(),
+        receiver_email: RECEIVER_EMAIL,
+        items,
+        business_type: $("custBusiness") ? $("custBusiness").value.trim() : "",
+        referred_by: $("referredFlag") ? $("referredFlag").value : "No",
+        referrer_name: $("referrerName") ? $("referrerName").value.trim() : "",
+        referrer_designation: $("referrerDesignation") ? $("referrerDesignation").value.trim() : "",
+        referrer_email: $("referrerEmail") ? $("referrerEmail").value.trim() : "",
+      };
+
+      if (!payload.customer_name || !payload.customer_address || !payload.customer_email || !payload.customer_phone || !payload.business_type) {
+        $("orderStatus").textContent = "Please fill Name, Address, Email, Contact No and Business Type.";
+        $("orderStatus").className = "status err";
+        return;
+      }
+
+// Upload prescription (Customer only) and include link in WhatsApp + Email text
+const selectedBusiness = payload.business_type;
+const presFile = document.getElementById("custPrescription")?.files?.[0];
+
+if (selectedBusiness === "Customer" && !presFile) {
+  $("orderStatus").textContent = "Prescription upload is required for Customer orders.";
+  $("orderStatus").className = "status err";
+  return;
+}
+
+try {
+  payload.prescription_url = await uploadPrescriptionIfAny(selectedBusiness);
+} catch (err) {
+  console.error(err);
+  $("orderStatus").textContent = "Prescription upload failed. Please try again or send prescription separately.";
+  $("orderStatus").className = "status err";
+  return;
+}
+
+      const orderText = buildOrderText(payload);
+
+      // 1) Send Email via EmailJS
+      try {
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+          // IMPORTANT: Your EmailJS template "To Email" should be set to {{to_email}} OR fixed to the receiver.
+          // We pass to_email here to avoid "recipient address is empty".
+          to_email: RECEIVER_EMAIL,
+
+          // These keys MUST match your EmailJS template variables like:
+          // {{customer_name}}, {{customer_email}}, {{customer_phone}}, {{customer_address}}, {{order_details}}
+          customer_name: payload.customer_name,
+          customer_email: payload.customer_email,
+          customer_phone: payload.customer_phone,
+          customer_address: payload.customer_address,
+          order_details: orderText,
+          business_type: payload.business_type
+        });
+
+        // 2) Open WhatsApp with prefilled message
+        const waUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(orderText)}`;
+        window.open(waUrl, "_blank", "noopener,noreferrer");
+
+        $("orderStatus").textContent = "Order submitted ✅ Email sent + WhatsApp opened.";
+        $("orderStatus").className = "status ok";
+
+      } catch (e) {
+        $("orderStatus").textContent = "Email sending failed: " + (e?.text || e?.message || "Unknown error") + " (check EmailJS service/template & Gmail permission).";
+        $("orderStatus").className = "status err";
+        console.error(e);
+      }
+    });
+
+    // Init page
+    renderMedicineRows();
+
+// Show prescription upload ONLY for Customer category
+const custBusiness = document.getElementById("custBusiness");
+const prescriptionUpload = document.getElementById("prescriptionUpload");
+if (custBusiness && prescriptionUpload) {
+  custBusiness.addEventListener("change", () => {
+    prescriptionUpload.style.display = (custBusiness.value === "Customer") ? "block" : "none";
+  });
+  // initial
+  prescriptionUpload.style.display = (custBusiness.value === "Customer") ? "block" : "none";
+}
+
+    // Top submit button triggers same action
+    const btnSubmitTop = document.getElementById("btnSubmitTop");
+    if (btnSubmitTop) {
+      btnSubmitTop.addEventListener("click", () => {
+        document.getElementById("btnSubmit").click();
+      });
+    }
+
+
+    const referredFlag = document.getElementById("referredFlag");
+    const ref1 = document.getElementById("referrerFields");
+    const ref2 = document.getElementById("referrerFields2");
+
+    if (referredFlag) {
+      referredFlag.addEventListener("change", () => {
+        if (referredFlag.value === "Yes") {
+          ref1.style.display = "block";
+          ref2.style.display = "block";
+          document.getElementById("referrerFields3").style ("display","block");
+        } else {
+          ref1.style.display = "none";
+          ref2.style.display = "none";
+          document.getElementById("referrerFields3").style ("display","none");
+        }
+      });
+    }
+
+    $("custEmail").addEventListener("focus", () => {
+      // auto-fill customer email from logged-in user (optional)
+      const user = auth.currentUser;
+      if (user && !$("custEmail").value) $("custEmail").value = user.email || "";
+    });
+
+  </script>
 </head>
 
 <body>
@@ -416,7 +766,6 @@ body:not([data-theme="dark"]) td{
       </div>
       <div class="row" style="margin-top:12px">
         <button class="btn btn-primary" id="btnLogin">Login</button>
-        <button class="btn btn-ghost" id="btnAdminLogin" type="button">Admin Login</button>
         <button class="btn btn-ghost" id="btnSignup">Create Account</button>
       </div>
       <div class="status" id="authStatus"></div>
@@ -453,22 +802,9 @@ body:not([data-theme="dark"]) td{
             <option>Stockist</option>
             <option>Retailer</option>
             <option>W/R</option>
+            <option>Hospital Supplies</option>
+            <option value="Customer">Customer</option>
           </select>
-        </div>
-
-        <div>
-          <label>State</label>
-          <select id="custState">
-            <option value="" selected disabled>Select state</option>
-            <option>Gujarat</option>
-            <option>Rajasthan</option>
-            <option>Madhya Pradesh</option>
-            <option>Maharashtra</option>
-            <option>Uttar Pradesh</option>
-            <option>Delhi</option>
-            <option>Other</option>
-          </select>
-          <div class="muted" style="margin-top:6px">Pricing/discount will auto-adjust based on State + Business Type.</div>
         </div>
         <div>
           <label>Referred By</label>
@@ -490,63 +826,11 @@ body:not([data-theme="dark"]) td{
           <label>Address</label>
           <input id="custAddress" type="text" placeholder="Full delivery address" />
         </div>
-      </div>
 
-
-      <!-- ADMIN: Pricing & Discount Control (visible only to admin emails) -->
-      <div class="card hide" id="adminPricingCard" style="margin-top:14px">
-        <h2 style="margin-bottom:10px">Admin Pricing Control</h2>
-        <div class="grid grid-2">
-          <div>
-            <label>State (Pricing Table)</label>
-            <select id="adminState">
-              <option value="GJ">Gujarat (GJ)</option>
-              <option value="RJ">Rajasthan (RJ)</option>
-              <option value="MP">Madhya Pradesh (MP)</option>
-              <option value="MH">Maharashtra (MH)</option>
-              <option value="UP">Uttar Pradesh (UP)</option>
-              <option value="DL">Delhi (DL)</option>
-              <option value="OT">Other (OT)</option>
-            </select>
-            <div class="muted" style="margin-top:6px">Edits saved here apply for ALL users.</div>
-          </div>
-          <div>
-            <label>Global Discount % (applies to all users)</label>
-            <input id="adminGlobalDiscount" type="number" min="0" max="100" step="0.01" value="10">
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:10px">
-          <div style="flex:2">
-            <label>Choose Medicine (Brand)</label>
-            <select id="adminBrand"></select>
-          </div>
-          <div style="flex:1">
-            <label>Doctor Price</label>
-            <input id="pDoctor" type="number" step="0.01" placeholder="₹">
-          </div>
-          <div style="flex:1">
-            <label>Wholeseller Price</label>
-            <input id="pWhole" type="number" step="0.01" placeholder="₹">
-          </div>
-          <div style="flex:1">
-            <label>Retailer Price</label>
-            <input id="pRetail" type="number" step="0.01" placeholder="₹">
-          </div>
-          <div style="flex:1">
-            <label>Stockist Price</label>
-            <input id="pStock" type="number" step="0.01" placeholder="₹">
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:12px">
-          <button class="btn btn-primary" id="btnAdminSave">Save Pricing</button>
-          <button class="btn btn-ghost" id="btnAdminReload" type="button">Reload Pricing</button>
-          <span class="muted" id="adminMsg" style="flex:2"></span>
-        </div>
-
-        <div class="note" style="margin-top:12px">
-          <b>Security note:</b> UI shows this only to admin emails, but you must also set Firestore Rules to block non-admin writes.
+        <div id="prescriptionUpload" style="display:none;">
+          <label>Attach Prescription Copy (Customer only)</label>
+          <input type="file" id="custPrescription" accept=".jpg,.jpeg,.png,.pdf" />
+          <div class="muted">Upload prescription image or PDF (recommended ≤ 5MB). A link will be sent on WhatsApp.</div>
         </div>
       </div>
 
@@ -565,9 +849,6 @@ body:not([data-theme="dark"]) td{
               <th>Sr No</th>
               <th>Brand Name</th>
               <th>Strength</th>
-              <th class="right" id="priceHead">Price</th>
-              <th class="right">Discount %</th>
-              <th class="right">Final Price (₹)</th>
               <th class="right">Quantity</th>
               <th class="right">Measurement</th>
             </tr>
@@ -589,10 +870,8 @@ body:not([data-theme="dark"]) td{
 
       <div class="note" style="margin-top:12px">
         Orders will be emailed to <b>infoahanityapharmalifescellp@gmail.com</b> and also shared on WhatsApp to <b>+91 8487090212</b>.
-        <p><strong>*</strong>Orders placed on or before 18:00 hrs (6:00 PM) will be processed and delivered on the same day, subject to stock availability and serviceable location.</p>
-        <p><strong>*</strong>Orders placed after 18:00 hrs will be delivered on the next day, as early as possible. </p>
-        <p><strong>*</strong>We accept and deliver orders on Sundays and public holidays as well. Same-day delivery applies for orders placed before 18:00 hrs, subject to availability.</p>
-        <p><strong>*</strong>Bulk Order placed After 18:00 hrs will be delivered next day as early as possible. </p>
+        <p><strong>*</strong>Orders placed on or before 13:00 hrs (1:00 PM) will be processed and delivered on the same day</p>
+        <p><strong>*</strong>We accept and deliver orders on Sundays and public holidays as well. Same-day delivery applies for orders placed before 13:00 hrs, subject to availability.</p>
         <p><strong>*</strong>Emergency requirements may be accommodated on a priority basis (subject to availability).</p>
         <p><strong>*</strong>Same-day delivery is subject to product stock availability. In case of stock shortage, the customer will be informed immediately.</p>
         <p><strong>*</strong>Order changes or cancellations must be communicated before dispatch confirmation.</p>
@@ -600,668 +879,6 @@ body:not([data-theme="dark"]) td{
       </div>
     </div>
   </div>
-
-<script type="module">
-window.__APLSL_APP_READY=false;
-
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } 
-      from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-    // ✅ 1) PUT YOUR FIREBASE CONFIG HERE
-    const firebaseConfig = {
-      apiKey: "AIzaSyCneC5CT9qfM8myRfoMZ7N4efUezDYMbLY",
-      authDomain: "ahanitya-order-app.firebaseapp.com",
-      projectId: "ahanitya-order-app",
-      appId: "1:107492901712:web:b53eed0e9934ff6f1b6255"
-    };
-
-    // ✅ 2) PUT YOUR EMAILJS DETAILS HERE
-    const EMAILJS_PUBLIC_KEY = "bKeNAq67qFjMMOtmO";
-    const EMAILJS_SERVICE_ID = "service_94vs7qt";
-    const EMAILJS_TEMPLATE_ID = "template_9qtgzil";
-
-    // Fixed receiver + WhatsApp
-    const RECEIVER_EMAIL = "infoahanityapharmalifescellp@gmail.com";
-    const WHATSAPP_NUMBER = "918487090212"; // +91 8487090212 (no +)
-
-    // ---------- Init ----------
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    // ---------- Multi-Admin ----------
-    // Add all admin emails here (lower/upper case doesn't matter)
-    const ADMIN_EMAILS = [
-      "infoahanityapharmalifescellp@gmail.com",
-      "ahanityapharmasuppliesllp@gmail.com"
-    ].map(x => String(x).toLowerCase());
-
-    function isAdminEmail(email){
-      return ADMIN_EMAILS.includes(String(email || "").toLowerCase());
-    }
-
-    // ---------- Pricing config from Firestore ----------
-    // Stored at: config/pricing_v1
-    // Structure:
-    // { globalDiscountPct: 10, pricesByState: { GJ: { "PANTO-DSR": { doctor: 140, wholeseller: 130, retailer: 120, stockist: 125 } } } }
-    let PRICING = { globalDiscountPct: 10, pricesByState: {} };
-
-    async function loadPricing(){
-      try{
-        const ref = doc(db, "config", "pricing_v1");
-        const snap = await getDoc(ref);
-        if(snap.exists()){
-          const data = snap.data() || {};
-          PRICING.globalDiscountPct = (typeof data.globalDiscountPct === "number") ? data.globalDiscountPct : 10;
-          PRICING.pricesByState = data.pricesByState || {};
-        }
-      }catch(e){
-        console.warn("Pricing load failed (ok for first run):", e);
-      }
-    }
-
-    async function savePricing(){
-      // Admin-only UI calls this; Firestore Rules MUST enforce admin write.
-      const ref = doc(db, "config", "pricing_v1");
-      await setDoc(ref, PRICING, { merge: true });
-    }
-
-    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-
-    // ---------- UI Helpers ----------
-    const $ = (id) => document.getElementById(id);
-    const show = (el) => el.classList.remove("hide");
-    const hide = (el) => el.classList.add("hide");
-
-    // ---------- Medicines (Edit your list) ----------
-    const MEDICINES = [
-      // You can set state-wise price/discount like this:
-      // pricesByState: { GJ:{doctor:140,wholeseller:130,retailer:120,stockist:125}, RJ:{doctor:145,wholeseller:135,retailer:125,stockist:130} }
-      // discountsByState: { GJ:{doctor:5,wholeseller:8,retailer:10,stockist:7}, RJ:{doctor:3,wholeseller:6,retailer:8,stockist:5} }
-      // defaultDiscounts: { doctor:0, wholeseller:0, retailer:0, stockist:0 }
-      { brand: "AZIN-500", strength: "Azithromycin Tablets I.P 500 mg" , available: true , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "ASP", strength: "Aceclofenac 100 mg + Paracetamol 325 mg + Serratiopeptidase 15 mg" , available: true , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "A-SUNAC", strength: "Aceclofenac 100 mg + Paracetamol 325 mg" , available: true , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "APLSL-DiaMet", strength: "Glimepiride 2 mg + Metformin HCl (ER)" , available: false , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "APLSL-Lulizid", strength: "Luliconazole 1%" , available: false , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "Ahanitya-Ketozin", strength: "Ketoconazole 2%" , available: false , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "APLSL-Cutiderm", strength: "Itraconazole 1% + Ofloxacin 0.75% + Ornidazole 2% + Clobetasol 0.05%" , available: false , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "Ahanitya-AmbroLev", strength: "Ambroxol 60 mg + Levocetirizine 2.5 mg + Paracetamol 500 mg + Phenylephrine 5 mg" , available: false , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "PANTO-DSR", strength: "Pantoprazole 40 mg + Domperidone 30 mg" , available: true , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }},
-      { brand: "LE-MONT", strength: "Montelukast 10 mg + Levocetirizine 5 mg" , available: true , prices: { doctor: null, wholeseller: null, retailer: null, stockist: null }}
-    ];
-
-    function renderMedicineRows() {
-      const tbody = $("medBody");
-      tbody.innerHTML = "";
-      MEDICINES.forEach((item, idx) => {
-        const keyRaw = `${item.brand} (${item.strength})`;
-        const key = escapeHtml(keyRaw);
-
-        // Availability (set available:false in MEDICINES to show Not Available)
-        const isNA = (item.available === false);
-        const qtyHtml = isNA
-          ? `<span class="na-text">Not Available</span>`
-          : `<input type="number" min="0" step="1" value="0" data-med="${key}" data-idx="${idx}" class="qty" style="max-width:110px">`;
-        const uomHtml = isNA
-          ? `<span class="na-text">—</span>`
-          : `<select class="uom" data-uom-med="${key}" style="max-width:140px">
-               <option value="Box">Box</option>
-               <option value="Strip">Strip</option>
-               <option value="Each">Each</option>
-             </select>`;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${idx + 1}</td>
-          <td>${escapeHtml(item.brand)}</td>
-          <td>${escapeHtml(item.strength)}</td>
-          <td class="right price-cell" data-idx="${idx}">—</td>
-          <td class="right">
-            ${isNA ? `<span class="na-text">—</span>` : `<input type="number" min="0" max="100" step="0.01" value="0" data-idx="${idx}" class="disc" style="max-width:110px" readonly>`}
-          </td>
-          <td class="right final-price-cell" data-idx="${idx}">—</td>
-          <td class="right">${qtyHtml}</td>
-          <td class="right">${uomHtml}</td>
-`;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function escapeHtml(str) {
-      return str.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-    }
-
-
-
-// ---------- Role + State based Pricing & Discount ----------
-// NOTE: UI hiding is not security. For true protection of PTR/PTS, use backend/Firestore rules.
-const ROLE_LABEL = { doctor:"Doctor", wholeseller:"Wholeseller", retailer:"Retailer", stockist:"Stockist" };
-const BUSINESS_TO_ROLE = {
-  "Doctor":"doctor",
-  "Wholeseller":"wholeseller",
-  "Retailer":"retailer",
-  "Stockist":"stockist",
-  // optional mappings (keep your old options working)
-  "Distributor":"wholeseller",
-  "W/R":"retailer"
-};
-
-// Map common state names to codes used in price/discount tables
-const STATE_CODE = {
-  "gujarat":"GJ",
-  "rajasthan":"RJ",
-  "madhya pradesh":"MP",
-  "maharashtra":"MH",
-  "uttar pradesh":"UP",
-  "delhi":"DL",
-  "other":"OT",
-  "":""
-};
-
-function normalizeStateCode(val){
-  const k = String(val || "").trim().toLowerCase();
-  return STATE_CODE[k] || k.toUpperCase().slice(0,2);
-}
-
-function getStoredRole(email){
-  try { return localStorage.getItem("ahanitya_role_" + (email || "").toLowerCase()) || ""; }
-  catch(e){ return ""; }
-}
-function setStoredRole(email, roleKey){
-  try {
-    if(!email) return;
-    localStorage.setItem("ahanitya_role_" + email.toLowerCase(), roleKey || "");
-  } catch(e){}
-}
-function getStoredState(email){
-  try { return localStorage.getItem("ahanitya_state_" + (email || "").toLowerCase()) || ""; }
-  catch(e){ return ""; }
-}
-function setStoredState(email, stateCode){
-  try {
-    if(!email) return;
-    localStorage.setItem("ahanitya_state_" + email.toLowerCase(), stateCode || "");
-  } catch(e){}
-}
-
-function roleKeyFromBusiness(businessVal){
-  return BUSINESS_TO_ROLE[businessVal] || "";
-}
-
-// Price lookup priority:
-// 1) item.pricesByState?.[STATE]?.[ROLE]
-// 2) item.prices?.[ROLE]
-function getPriceFor(item, roleKey, stateCode){
-  if(!item || !roleKey) return null;
-  const st = stateCode || "";
-  const brandKey = item.brand;
-
-  // 0) Firestore pricing override (highest priority)
-  const p0 = PRICING?.pricesByState?.[st]?.[brandKey]?.[roleKey];
-  if(p0 !== null && p0 !== undefined && p0 !== "") return Number(p0);
-
-  // 1) item.pricesByState (optional)
-  const byState = item?.pricesByState?.[st]?.[roleKey];
-  if(byState !== null && byState !== undefined && byState !== "") return Number(byState);
-
-  // 2) item.prices fallback
-  const base = item?.prices?.[roleKey];
-  if(base !== null && base !== undefined && base !== "") return Number(base);
-
-  return null;
-}
-
-
-// Discount lookup priority:
-// 1) item.discountsByState?.[STATE]?.[ROLE]
-// 2) item.defaultDiscounts?.[ROLE]
-// 3) 0
-function getDefaultDiscountFor(item, roleKey, stateCode){
-  // Global discount from Firestore (editable by Admin)
-  const g = Number(PRICING?.globalDiscountPct);
-  return isFinite(g) ? g : 10;
-}
-
-let CURRENT_ROLE_KEY = "";
-let CURRENT_STATE_CODE = "";
-
-function applyPriceUI(roleKey, stateCode){
-  CURRENT_ROLE_KEY = roleKey || "";
-  CURRENT_STATE_CODE = stateCode || "";
-
-  const head = document.getElementById("priceHead");
-  if (head) {
-    const roleLabel = CURRENT_ROLE_KEY ? ("Price to " + (ROLE_LABEL[CURRENT_ROLE_KEY] || CURRENT_ROLE_KEY)) : "Price";
-    head.textContent = CURRENT_STATE_CODE ? (roleLabel + " (" + CURRENT_STATE_CODE + ")") : roleLabel;
-  }
-
-  // update all price cells
-  document.querySelectorAll(".price-cell").forEach(td => {
-    const idx = Number(td.getAttribute("data-idx"));
-    const item = MEDICINES[idx];
-    const val = getPriceFor(item, CURRENT_ROLE_KEY, CURRENT_STATE_CODE);
-    td.textContent = (val === null || !isFinite(val)) ? "—" : String(val.toFixed(2));
-  });
-
-  // apply default discounts (only if user hasn't manually edited)
-  document.querySelectorAll(".disc").forEach(inp => {
-    const idx = Number(inp.getAttribute("data-idx"));
-    const item = MEDICINES[idx];
-    if (inp.dataset.userEdited === "1") return; // keep user's manual override
-    const defD = getDefaultDiscountFor(item, CURRENT_ROLE_KEY, CURRENT_STATE_CODE);
-    inp.value = isFinite(defD) ? String(defD) : "0";
-  });
-
-  updateFinalPrices();
-}
-
-function updateFinalPrices(){
-  document.querySelectorAll(".final-price-cell").forEach(td => {
-    const idx = Number(td.getAttribute("data-idx"));
-    const item = MEDICINES[idx];
-
-    const base = getPriceFor(item, CURRENT_ROLE_KEY, CURRENT_STATE_CODE);
-    const discInp = document.querySelector('.disc[data-idx="'+idx+'"]');
-    const disc = discInp ? Number(discInp.value || 0) : 0;
-
-    if (base === null || !isFinite(base) || !CURRENT_ROLE_KEY) {
-      td.textContent = "—";
-      return;
-    }
-    const finalVal = Number(base) * (1 - (disc/100));
-    td.textContent = isFinite(finalVal) ? finalVal.toFixed(2) : "—";
-  });
-}
-}
-
-
-function applyAdminUI(isAdmin){
-  const adminCard = document.getElementById("adminPricingCard");
-  if(adminCard){
-    adminCard.classList.toggle("hide", !isAdmin);
-  }
-  // Discount inputs editable only for admin
-  document.querySelectorAll(".disc").forEach(inp => {
-    if(inp.hasAttribute("readonly")) {
-      if(isAdmin) inp.removeAttribute("readonly");
-      else inp.setAttribute("readonly","readonly");
-    } else {
-      if(!isAdmin) inp.setAttribute("readonly","readonly");
-    }
-  });
-}
-
-// Live update when discount changes (mark user override)
-document.addEventListener("input", (e) => {
-  if (e.target && e.target.classList && e.target.classList.contains("disc")) {
-    e.target.dataset.userEdited = "1";
-    updateFinalPrices();
-  }
-});
-
-function applyRoleAndStateFromLogin(){
-  const user = auth.currentUser;
-  const email = user?.email || "";
-
-  const businessSel = document.getElementById("custBusiness");
-  const stateSel = document.getElementById("custState");
-  if (!businessSel || !stateSel) return;
-
-  const savedRole = getStoredRole(email);
-  const savedState = getStoredState(email);
-
-  // Restore / lock business type for this login
-  if (savedRole) {
-    const businessName = Object.keys(BUSINESS_TO_ROLE).find(k => BUSINESS_TO_ROLE[k] === savedRole) || "";
-    if (businessName) businessSel.value = businessName;
-    businessSel.disabled = true;
-  } else {
-    businessSel.disabled = false;
-  }
-
-  // Restore state if saved
-  if (savedState) {
-    // try set by code -> name not stored; we store code, so we just keep select value if matches known states
-    const reverse = Object.entries(STATE_CODE).reduce((acc,[k,v]) => (acc[v]=k, acc), {});
-    const nameKey = reverse[savedState] || "";
-    if (nameKey) {
-      // convert key back to Title Case label in dropdown
-      const label = nameKey.split(" ").map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
-      stateSel.value = label;
-    }
-  }
-
-  // If no state selected yet, default to Gujarat (can be changed anytime)
-  if (!stateSel.value) stateSel.value = "Gujarat";
-
-
-  const roleKey = savedRole || roleKeyFromBusiness(businessSel.value || "");
-  const stateCode = normalizeStateCode(stateSel.value || "");
-
-  if (roleKey) setStoredRole(email, roleKey);
-  if (stateCode) setStoredState(email, stateCode);
-
-  applyPriceUI(roleKey, stateCode);
-}
-
-// React to Business Type change (only when not locked)
-document.addEventListener("change", (e) => {
-  if (e.target && e.target.id === "custBusiness") {
-    const email = auth.currentUser?.email || "";
-    const roleKey = roleKeyFromBusiness(e.target.value || "");
-    const stateCode = normalizeStateCode(document.getElementById("custState")?.value || "");
-    if (roleKey) setStoredRole(email, roleKey);
-    applyPriceUI(roleKey, stateCode);
-  }
-});
-
-// React to State change
-document.addEventListener("change", (e) => {
-  if (e.target && e.target.id === "custState") {
-    const email = auth.currentUser?.email || "";
-    const stateCode = normalizeStateCode(e.target.value || "");
-    if (stateCode) setStoredState(email, stateCode);
-
-    // reset userEdited so defaults can re-apply on state change (optional)
-    document.querySelectorAll(".disc").forEach(inp => { inp.dataset.userEdited = ""; });
-
-    const roleKey = getStoredRole(email) || roleKeyFromBusiness(document.getElementById("custBusiness")?.value || "");
-    applyPriceUI(roleKey, stateCode);
-  }
-});
-
-
-function getOrderItems() {
-      const qtyInputs = Array.from(document.querySelectorAll(".qty"));
-      const uomInputs = Array.from(document.querySelectorAll(".uom"));
-
-      // Build a map: medicine -> unit
-      const uomMap = new Map(
-        uomInputs.map(sel => [sel.getAttribute("data-uom-med"), sel.value])
-      );
-
-      const items = qtyInputs
-        .map(inp => {
-          const med = inp.getAttribute("data-med");
-          const idx = Number(inp.getAttribute("data-idx"));
-          const uom = uomMap.get(med) || "Box";
-
-          // role key (locked per login if saved)
-          const email = auth.currentUser?.email || "";
-          const roleKey = getStoredRole(email) || roleKeyFromBusiness(document.getElementById("custBusiness")?.value || "");
-          const stateCode = normalizeStateCode(document.getElementById("custState")?.value || "");
-          const base = getPriceFor(MEDICINES?.[idx], roleKey, stateCode);
-
-          const discInp = document.querySelector('.disc[data-idx="'+idx+'"]');
-          const discount_pct = discInp ? Number(discInp.value || 0) : 0;
-
-          const final_price = (base === null || !isFinite(base)) ? null : (Number(base) * (1 - discount_pct/100));
-
-          return {
-            med,
-            qty: Number(inp.value || 0),
-            uom,
-            unit_price: (base === null || !isFinite(base)) ? null : Number(base),
-            discount_pct,
-            final_price: (final_price === null || !isFinite(final_price)) ? null : Number(final_price.toFixed(2))
-          };
-        })
-        .filter(x => x.qty > 0);
-
-      return items;
-    }
-
-    function buildOrderText(payload) {
-      const lines = [];
-      lines.push("📦 *Ahanitya Order*");
-      lines.push("");
-      lines.push(`👤 Name: ${payload.customer_name}`);
-      lines.push(`📍 Address: ${payload.customer_address}`);
-      lines.push(`📧 Email: ${payload.customer_email}`);
-      lines.push(`📞 Contact: ${payload.customer_phone}`);
-      lines.push(`🏢 Business Type: ${payload.business_type || ""}`);
-      lines.push(`🗺️ State: ${payload.customer_state || ""} ${payload.state_code ? ("(" + payload.state_code + ")") : ""}`);
-      lines.push(`👥 Referred By: ${payload.referred_by}`);
-      if (payload.referred_by === "Yes") {
-        lines.push(`🙍 Referrer Name: ${payload.referrer_name}`);
-        lines.push(`🎓 Referrer Designation: ${payload.referrer_designation}`);
-        if (payload.referrer_email) {
-          lines.push(`📧 Referrer Email: ${payload.referrer_email}`);
-        }
-      }
-      lines.push("");
-      lines.push("💊 *Medicines Ordered:*");
-      payload.items.forEach((it, i) => {
-        const p = (it.unit_price === null || it.unit_price === undefined) ? "—" : ("₹"+Number(it.unit_price).toFixed(2));
-        const d = (it.discount_pct === null || it.discount_pct === undefined) ? "0" : String(it.discount_pct);
-        const fp = (it.final_price === null || it.final_price === undefined) ? "—" : ("₹"+Number(it.final_price).toFixed(2));
-        lines.push(`${i+1}. ${it.med} — Qty: ${it.qty} ${it.uom} — Price: ${p} — Disc: ${d}% — Final: ${fp}`);
-      });
-      lines.push("");
-      lines.push(`🗓 Date/Time: ${new Date().toLocaleString()}`);
-      return lines.join("\n");
-    }
-
-    // ---------- Auth + UI Boot (wait for DOM) ----------
-    function bootUI(){
-      // Render medicines table
-      renderMedicineRows();
-      bindReferrerToggle();
-
-      // Top submit button triggers same action
-      const btnSubmitTop = $("btnSubmitTop");
-      if (btnSubmitTop) {
-        btnSubmitTop.addEventListener("click", () => {
-          const b = $("btnSubmit");
-          if (b) b.click();
-        });
-      }
-
-      // Referrer fields show/hide (fixed)
-      const referredFlag = $("referredFlag");
-      const ref1 = document.getElementById("referrerFields");
-      const ref2 = document.getElementById("referrerFields2");      if (referredFlag) {
-        referredFlag.addEventListener("change", () => {
-          const showRefs = (referredFlag.value === "Yes");
-          if (ref1) ref1.style.display = showRefs ? "block" : "none";
-          if (ref2) ref2.style.display = showRefs ? "block" : "none";
-          if (ref3) ref3.style.display = showRefs ? "block" : "none";
-        });
-      }
-
-      // Auto-fill customer email from logged-in user (optional)
-      const custEmail = $("custEmail");
-      if (custEmail) {
-        custEmail.addEventListener("focus", () => {
-          const user = auth.currentUser;
-          if (user && !custEmail.value) custEmail.value = user.email || "";
-        });
-      }
-
-      // Auth state
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          hide($("authCard"));
-          show($("orderCard"));
-          if ($("who")) $("who").textContent = user.email;
-
-          // Load latest pricing from Firestore (shared for all users)
-          try { await loadPricing(); } catch(e){ console.warn("loadPricing failed", e); }
-
-          // Admin UI enable/disable
-          const admin = isAdminEmail(user.email);
-          applyAdminUI(admin);
-          if (admin) {
-            try { await initAdminPanel(); } catch(e){ console.warn("initAdminPanel failed", e); }
-          }
-
-          // Apply pricing column as per this login's saved category + state
-          applyRoleAndStateFromLogin();
-        } else {
-          show($("authCard"));
-          hide($("orderCard"));
-          if ($("who")) $("who").textContent = "";
-        }
-      });
-
-      // Login (normal)
-      const btnLogin = $("btnLogin");
-      if (btnLogin) btnLogin.addEventListener("click", async () => {
-        if ($("authStatus")) $("authStatus").textContent = "";
-        const email = ($("loginEmail")?.value || "").trim();
-        const pass = ($("loginPass")?.value || "").trim();
-        try {
-          await signInWithEmailAndPassword(auth, email, pass);
-          if ($("authStatus")) {
-            $("authStatus").textContent = "Logged in successfully ✅";
-            $("authStatus").className = "status ok";
-          }
-        } catch (e) {
-          if ($("authStatus")) {
-            $("authStatus").textContent = (e?.message || "Login failed");
-            $("authStatus").className = "status err";
-          }
-        }
-      });
-
-      // Admin Login (same Firebase login, but must be in admin list)
-      const btnAdminLogin = $("btnAdminLogin");
-      if (btnAdminLogin) btnAdminLogin.addEventListener("click", async () => {
-        if ($("authStatus")) $("authStatus").textContent = "";
-        const email = ($("loginEmail")?.value || "").trim().toLowerCase();
-        const pass = ($("loginPass")?.value || "").trim();
-
-        if (!isAdminEmail(email)) {
-          if ($("authStatus")) {
-            $("authStatus").textContent = "This email is not authorized for Admin access.";
-            $("authStatus").className = "status err";
-          }
-          return;
-        }
-
-        try {
-          await signInWithEmailAndPassword(auth, email, pass);
-          if ($("authStatus")) {
-            $("authStatus").textContent = "Admin logged in ✅";
-            $("authStatus").className = "status ok";
-          }
-        } catch (e) {
-          if ($("authStatus")) {
-            $("authStatus").textContent = (e?.message || "Admin login failed");
-            $("authStatus").className = "status err";
-          }
-        }
-      });
-
-      // Signup
-      const btnSignup = $("btnSignup");
-      if (btnSignup) btnSignup.addEventListener("click", async () => {
-        if ($("authStatus")) $("authStatus").textContent = "";
-        const email = ($("loginEmail")?.value || "").trim();
-        const pass = ($("loginPass")?.value || "").trim();
-        try {
-          await createUserWithEmailAndPassword(auth, email, pass);
-          if ($("authStatus")) {
-            $("authStatus").textContent = "Account created & logged in ✅";
-            $("authStatus").className = "status ok";
-          }
-        } catch (e) {
-          if ($("authStatus")) {
-            $("authStatus").textContent = (e?.message || "Sign-up failed");
-            $("authStatus").className = "status err";
-          }
-        }
-      });
-
-      // Logout
-      const btnLogout = $("btnLogout");
-      if (btnLogout) btnLogout.addEventListener("click", async () => {
-        try { await signOut(auth); } catch(e){}
-      });
-
-      // Submit Order
-      const btnSubmit = $("btnSubmit");
-      if (btnSubmit) btnSubmit.addEventListener("click", async () => {
-        if ($("orderStatus")) $("orderStatus").textContent = "";
-
-        const items = getOrderItems();
-        if (items.length === 0) {
-          if ($("orderStatus")) {
-            $("orderStatus").textContent = "Please select at least 1 medicine with quantity.";
-            $("orderStatus").className = "status err";
-          }
-          return;
-        }
-
-        const payload = {
-          customer_name: ($("custName")?.value || "").trim(),
-          customer_address: ($("custAddress")?.value || "").trim(),
-          customer_email: ($("custEmail")?.value || "").trim(),
-          customer_phone: ($("custPhone")?.value || "").trim(),
-          receiver_email: RECEIVER_EMAIL,
-          items,
-          business_type: $("custBusiness") ? ($("custBusiness").value || "").trim() : "",
-          customer_state: $("custState") ? ($("custState").value || "").trim() : "",
-          state_code: normalizeStateCode($("custState") ? ($("custState").value || "").trim() : ""),
-          referred_by: $("referredFlag") ? $("referredFlag").value : "No",
-          referrer_name: $("referrerName") ? ($("referrerName").value || "").trim() : "",
-          referrer_designation: $("referrerDesignation") ? ($("referrerDesignation").value || "").trim() : "",
-          referrer_email: $("referrerEmail") ? ($("referrerEmail").value || "").trim() : "",
-        };
-
-        if (!payload.customer_name || !payload.customer_address || !payload.customer_email || !payload.customer_phone || !payload.business_type) {
-          if ($("orderStatus")) {
-            $("orderStatus").textContent = "Please fill Name, Address, Email, Contact No and Business Type.";
-            $("orderStatus").className = "status err";
-          }
-          return;
-        }
-
-        const orderText = buildOrderText(payload);
-
-        try {
-          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-            to_email: RECEIVER_EMAIL,
-            customer_name: payload.customer_name,
-            customer_email: payload.customer_email,
-            customer_phone: payload.customer_phone,
-            customer_address: payload.customer_address,
-            order_details: orderText,
-            business_type: payload.business_type
-          });
-
-          const waUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(orderText)}`;
-          window.open(waUrl, "_blank", "noopener,noreferrer");
-
-          if ($("orderStatus")) {
-            $("orderStatus").textContent = "Order submitted ✅ Email sent + WhatsApp opened.";
-            $("orderStatus").className = "status ok";
-          }
-        } catch (e) {
-          if ($("orderStatus")) {
-            $("orderStatus").textContent = "Email sending failed: " + (e?.text || e?.message || "Unknown error");
-            $("orderStatus").className = "status err";
-          }
-          console.error(e);
-        }
-      });
-
-      // If user is already logged in (rare), apply immediately (safe)
-      try { applyRoleAndStateFromLogin(); } catch(e){}
-    }
-
-    if (document.readyState === "loading") {
-      window.addEventListener("DOMContentLoaded", bootUI);
-    } else {
-      bootUI();
-    }
-
-window.__APLSL_APP_READY=true;
-
-</script>
 
 <script>
 (function(){
