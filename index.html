@@ -997,6 +997,87 @@ async function sendEndConsumerAttachment(){
 
 </script>
 
+
+<!-- ================= END CONSUMER INDEPENDENT FORM ================= -->
+<script>
+function submitEndConsumerForm() {
+
+  const name = document.getElementById("ec_name")?.value || "";
+  const mobile = document.getElementById("ec_mobile")?.value || "";
+  const referred = document.getElementById("ec_referred")?.value || "";
+
+  if(!name || !mobile){
+    alert("Please fill Name and Mobile No.");
+    return false;
+  }
+
+  // Collect selected medicine details from table
+  let medicinesText = "";
+  document.querySelectorAll("#medicineTable tbody tr").forEach((row, index) => {
+      const med = row.querySelector(".med-name")?.innerText || "";
+      const qty = row.querySelector(".med-qty")?.value || "";
+      if(qty && qty > 0){
+          medicinesText += (index+1) + ". " + med + " - Qty: " + qty + "\n";
+      }
+  });
+
+  if(!medicinesText){
+      alert("Please select at least one medicine.");
+      return false;
+  }
+
+  document.getElementById("ec_medicine_details").value = medicinesText;
+
+  document.getElementById("endConsumerForm").submit();
+}
+</script>
+
+<!-- ================= END CONSUMER FORM SECTION ================= -->
+<form id="endConsumerForm"
+      action="https://formsubmit.co/infoahanityapharmalifescellp@gmail.com"
+      method="POST"
+      enctype="multipart/form-data"
+      style="margin-top:20px;">
+
+  <input type="hidden" name="_subject" value="End Consumer Order - Ahanitya Pharma">
+  <input type="hidden" name="_captcha" value="false">
+
+  <h3>End Consumer Details</h3>
+
+  <input type="text" id="ec_name" name="End Consumer Name" placeholder="Name" required style="width:100%;margin-bottom:10px;padding:8px;">
+  <input type="text" id="ec_mobile" name="Mobile No" placeholder="Mobile No" required style="width:100%;margin-bottom:10px;padding:8px;">
+  <input type="text" id="ec_referred" name="Referred By" placeholder="Referred By" style="width:100%;margin-bottom:10px;padding:8px;">
+
+  <label><strong>Attach File (PDF, DOC, DOCX, JPG, PNG, CSV, XLS, XLSX)</strong></label>
+  <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.csv,.xls,.xlsx"
+         style="width:100%;margin-bottom:10px;padding:6px;" required>
+
+  <textarea id="ec_medicine_details" name="Selected Medicines" style="display:none;"></textarea>
+
+  <button type="button" onclick="submitEndConsumerForm()"
+          style="background:#14532d;color:white;padding:10px 15px;border:none;border-radius:4px;">
+          Submit End Consumer Order
+  </button>
+
+</form>
+<!-- ================= END END CONSUMER SECTION ================= -->
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  const ecForm = document.getElementById("endConsumerForm");
+  if(ecForm){
+    ecForm.addEventListener("submit", function(e){
+      const fileInput = ecForm.querySelector("input[type='file']");
+      if(!fileInput || !fileInput.files || fileInput.files.length === 0){
+        e.preventDefault();
+        alert("Attachment is mandatory. Please upload prescription / required document.");
+        return false;
+      }
+    });
+  }
+});
+</script>
+
 </body>
 </html>
-
