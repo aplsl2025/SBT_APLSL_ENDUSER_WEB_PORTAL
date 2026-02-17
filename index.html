@@ -306,8 +306,9 @@ required>
 <textarea id="hiddenItems" name="Selected Medicines" style="display:none"></textarea>
 
 <div class="row" style="margin-top:18px">
-<button type="submit" class="btn btn-primary">Submit to Email</button>
-<button type="button" class="btn btn-danger" onclick="sendWhatsApp()">Send to WhatsApp</button>
+  <button type="submit" class="btn btn-primary">Submit to Email</button>
+  <button type="button" class="btn btn-danger" onclick="sendWhatsApp()">Send to WhatsApp</button>
+  <button type="button" class="btn btn-primary" onclick="sendBoth()">Send to WhatsApp + Email</button>
 </div>
 
 <div id="status" class="status"></div>
@@ -392,18 +393,28 @@ document.getElementById("ecForm").addEventListener("submit",function(e){
   document.getElementById("status").className = "status ok";
 });
 
-function sendWhatsApp(){
+function sendBoth(){
   const items = collectItems();
   if(!items){
     alert("Select at least one medicine with quantity.");
     return;
   }
+
   const name = document.getElementById("custName").value.trim();
   const mobile = document.getElementById("custMobile").value.trim();
+
   if(!name || !mobile){
     alert("Fill Name and Mobile No first.");
     return;
   }
+
+  // Set hidden textarea for email
+  document.getElementById("hiddenItems").value = items;
+
+  // Submit form (Email)
+  document.getElementById("ecForm").submit();
+
+  // WhatsApp message
   const message =
     `APLSL End Consumer Order%0AName: ${encodeURIComponent(name)}%0A`+
     `Mobile: ${encodeURIComponent(mobile)}%0A%0A`+
@@ -411,6 +422,7 @@ function sendWhatsApp(){
 
   window.open(`https://wa.me/918487090212?text=${message}`,"_blank");
 }
+
 
 document.addEventListener("DOMContentLoaded", renderRows);
 </script>
