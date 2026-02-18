@@ -378,16 +378,28 @@ const MEDICINES=[
   {brand:"ASP", company:"Ahanitya Pharma Life Science LLP", strength:"Aceclofenac + Paracetamol + Serratiopeptidase", available:true},
   {brand:"A-SUNAC", company:"Ahanitya Pharma Life Science LLP", strength:"Aceclofenac + Paracetamol", available:true},
   {brand:"PANTO-DSR", company:"Ahanitya Pharma Life Science LLP", strength:"Pantoprazole + Domperidone", available:true},
-  {brand:"APLSL-DiaMet", company:"Ahanitya Pharma Life Science LLP", strength:"Glimepiride 2 mg + Metformin HCl (ER)", available:false},
+  {brand:"APLSL-DiaMet", company:"Sky Biotech", strength:"Glimepiride 2 mg + Metformin HCl (ER)", available:false},
   {brand:"LE-MONT", company:"Ahanitya Pharma Life Science LLP", strength:"Montelukast + Levocetirizine", available:true}
 ];
+
+// ✅ Persist selections even after filtering/re-render
+// Keyed by brand (unique). Stores qty + unit.
+const selectionState = new Map();
+function getKey(m){ return (m.brand || "").trim(); }
+function ensureState(m){
+  const k = getKey(m);
+  if(!selectionState.has(k)){
+    selectionState.set(k, { qty: 0, unit: "Box" });
+  }
+  return selectionState.get(k);
+}
 
 function renderRows(){
   const tbody = document.getElementById("medBody");
   if(!tbody) return;
 
-  const q = (document.getElementById("medSearch") && document.getElementById("medSearch").value ? document.getElementById("medSearch").value : "")
-            .trim().toLowerCase();
+  const searchEl = document.getElementById("medSearch");
+  const q = (searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
 
   tbody.innerHTML = "";
 
@@ -395,56 +407,80 @@ function renderRows(){
     if(!q) return true;
     const brand = (m.brand || "").toLowerCase();
     const company = (m.company || "").toLowerCase();
-    return brand.includes(q) || company.includes(q);
+    const strength = (m.strength || "").toLowerCase();
+    return brand.includes(q) || company.includes(q) || strength.includes(q);
   });
 
-  filtered.forEach((m, i) => {
+  filtered.forEach((m) => {
     const tr = document.createElement("tr");
+    const state = ensureState(m);
 
-    const qtyCell = (m.available === false)
+    const qtyCellHTML = (m.available === false)
       ? `<span class="na-badge">Updating Soon</span>`
-      : `<input type="number" min="0" step="1" value="0" class="qty" inputmode="numeric">`;
+      : `<input type="number" min="0" step="1" value="${state.qty}" class="qty" inputmode="numeric" data-key="${getKey(m)}">`;
 
-    const unitCell = (m.available === false)
+    const unitCellHTML = (m.available === false)
       ? `<span class="na-badge">—</span>`
-      : `<select class="uom">
+      : `<select class="uom" data-key="${getKey(m)}">
            <option value="Box">Box</option>
            <option value="Strip">Strip</option>
            <option value="Bottle">Bottle</option>
            <option value="Each">Each</option>
          </select>`;
 
+    // Sr no based on original list position (stable)
+    const sr = MEDICINES.findIndex(x => getKey(x) === getKey(m)) + 1;
+
     tr.innerHTML = `
-      <td>${i + 1}</td>
+      <td>${sr}</td>
       <td>${m.brand}</td>
       <td>${m.company || ""}</td>
       <td>${m.strength}</td>
-      <td class="right">${qtyCell}</td>
-      <td class="right">${unitCell}</td>
+      <td class="right">${qtyCellHTML}</td>
+      <td class="right">${unitCellHTML}</td>
     `;
 
     tbody.appendChild(tr);
+
+    // Set selected unit after adding row
+    const uom = tr.querySelector(".uom");
+    if(uom){ uom.value = state.unit || "Box"; }
+  });
+
+  // Attach listeners AFTER rows are added (so filtering doesn't break selection)
+  tbody.querySelectorAll("input.qty").forEach((el)=>{
+    el.addEventListener("input", ()=>{
+      const key = el.getAttribute("data-key");
+      const v = Number(el.value || 0);
+      const st = selectionState.get(key) || { qty: 0, unit: "Box" };
+      st.qty = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+      selectionState.set(key, st);
+    });
+  });
+
+  tbody.querySelectorAll("select.uom").forEach((el)=>{
+    el.addEventListener("change", ()=>{
+      const key = el.getAttribute("data-key");
+      const st = selectionState.get(key) || { qty: 0, unit: "Box" };
+      st.unit = el.value || "Box";
+      selectionState.set(key, st);
+    });
   });
 }
 
 function collectItems(){
-  const rows = document.querySelectorAll("#medBody tr");
   let text = "";
-
-  rows.forEach((row)=>{
-    const qtyEl = row.querySelector(".qty");
-    if(!qtyEl) return;
-
-    const qty = Number(qtyEl.value || 0);
-    if(qty > 0){
-      const brand = row.cells[1].innerText.trim();
-      const company = row.cells[2].innerText.trim();
-      const strength = row.cells[3].innerText.trim();
-      const unit = row.querySelector(".uom") ? row.querySelector(".uom").value : "";
-      text += `${brand} - ${company} (${strength}) - ${qty} ${unit}\n`;
-    }
+  MEDICINES.forEach((m)=>{
+    const key = getKey(m);
+    const st = selectionState.get(key);
+    if(!st || !st.qty || st.qty <= 0) return;
+    if(m.available === false) return; // just in case
+    const brand = (m.brand || "").trim();
+    const company = (m.company || "").trim();
+    const strength = (m.strength || "").trim();
+    const unit = (st.unit || "Box").trim();
+    text += `${brand} - ${company} (${strength}) - ${st.qty} ${unit}\n`;
   });
-
   return text.trim();
 }
 
@@ -471,7 +507,6 @@ document.getElementById("ecForm").addEventListener("submit",function(e){
 
 function sendBoth(){
   const form = document.getElementById("ecForm");
-  const statusEl = document.getElementById("status");
 
   // Ahmedabad validation (unchanged)
   const cityEl = document.getElementById("custCity");
@@ -509,7 +544,6 @@ function sendBoth(){
 
   // Remove internal FormSubmit keys from message
   const skipKeys = new Set(["_captcha","_subject","_template","_cc","Selected Medicines"]);
-  // We'll add Selected Medicines separately (clean formatting)
   // Attachment: cannot be sent via WhatsApp, but we include file name
   const attachmentName = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0].name : "";
 
