@@ -222,6 +222,47 @@ th{
   border: 1px solid #11799A;
 }
 
+/* ===== Professional Message Box ===== */
+.customMessageBox{
+  margin-top:18px;
+  padding:18px;
+  background: linear-gradient(135deg, #f8fbff, #eef6ff);
+  border:1px solid #dbeafe;
+  border-left:6px solid var(--brand);
+  border-radius:14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  transition: all .25s ease;
+}
+.customMessageBox:hover{
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+.customMessageBox label{
+  font-weight:800;
+  font-size:14px;
+  color:var(--text);
+  margin-bottom:8px;
+  display:block;
+  letter-spacing:.2px;
+}
+#customMessage{
+  width:100%;
+  min-height:110px;
+  padding:12px 14px;
+  border-radius:10px;
+  border:1px solid #cbd5e1;
+  font-size:14px;
+  font-family:inherit;
+  resize:vertical;
+  background:#ffffff;
+  transition: all .2s ease;
+  box-sizing:border-box;
+}
+#customMessage:focus{
+  outline:none;
+  border-color:var(--brand);
+  box-shadow:0 0 0 3px rgba(27,142,166,0.15);
+}
+
 </style>
 </head>
 
@@ -365,9 +406,9 @@ required>
 </div>
   
 <div class="customMessageBox">
-  <label for="customMessage"> Medicines Not Listed? Share Here </label>
+  <label for="customMessage"> Request for Additional Medicines (If Not Listed Above) </label>
   <textarea id="customMessage" name="custom_message" 
-            placeholder="Enter any special instructions, notes, or message here..."
+            placeholder="Mention any other medicines, special instructions, or notes here..."
             rows="4"></textarea>
 </div>
 <textarea id="hiddenItems" name="Selected Medicines" style="display:none"></textarea>
@@ -603,7 +644,14 @@ function sendBoth(){
   lines.push("Medicines:");
   lines.push(items);
 
-  const message = encodeURIComponent(lines.join("\n"));
+  
+
+  // ✅ Additional Message (Not compulsory)
+  const customMessage = (document.getElementById("customMessage")?.value || "").trim();
+  lines.push("");
+  lines.push("Additional Message:");
+  lines.push(customMessage ? customMessage : "-");
+const message = encodeURIComponent(lines.join("\n"));
 
   // Submit Email first
   form.submit();
